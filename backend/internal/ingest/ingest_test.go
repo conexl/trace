@@ -6,13 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"backend/internal/alerts"
 	"backend/internal/config"
 	"backend/internal/store"
 )
 
 func TestServiceIngestsSnapshotEnvelope(t *testing.T) {
 	memory := store.NewMemoryStore(config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}})
-	service := NewService(memory)
+	service := newTestService(memory)
 	payload := []byte(`{"snapshots":[{"agent_name":"devbox","host":{"hostname":"arch","platform":"linux"},"system":{"cpu_percent":7,"memory":{"used_percent":30}},"network":{"public_ip":"203.0.113.1"},"collected_at":"2026-07-02T09:00:00Z"}]}`)
 
 	result, err := service.Ingest(context.Background(), payload)
@@ -33,9 +34,15 @@ func TestServiceIngestsSnapshotEnvelope(t *testing.T) {
 
 func TestServiceRejectsAnonymousSnapshot(t *testing.T) {
 	memory := store.NewMemoryStore(config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}})
-	service := NewService(memory)
+	service := newTestService(memory)
 	payload, _ := json.Marshal(map[string]any{"snapshots": []any{map[string]any{}}})
 	if _, err := service.Ingest(context.Background(), payload); err == nil {
 		t.Fatal("Ingest() expected validation error")
 	}
+}
+
+func newTestService(memory *store.MemoryStore) *Service {
+	notifier := alerts.NewMemoryNotifier(config.Config{Alerts: config.AlertsConfig{MemoryLimit: 10}})
+	dispatcher := alerts.NewDispatcher(alerts.DispatcherParams{Notifiers: []alerts.Notifier{notifier}})
+	return NewService(memory, alerts.NewEvaluator(), dispatcher)
 }

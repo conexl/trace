@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"backend/internal/alerts"
 	"backend/internal/config"
 	"backend/internal/ingest"
 	"backend/internal/security"
@@ -33,7 +34,9 @@ func newTestServer(t *testing.T, cfg config.Config) *Server {
 		t.Fatal(err)
 	}
 	pairing := security.NewPairingService(cfg, ca)
-	return NewServer(cfg, memory, ingest.NewService(memory), pairing, tasks.NewMemoryStore(), zaptest.NewLogger(t))
+	notifier := alerts.NewMemoryNotifier(cfg)
+	dispatcher := alerts.NewDispatcher(alerts.DispatcherParams{Notifiers: []alerts.Notifier{notifier}})
+	return NewServer(cfg, memory, ingest.NewService(memory, alerts.NewEvaluator(), dispatcher), pairing, tasks.NewMemoryStore(), notifier, zaptest.NewLogger(t))
 }
 
 func TestIngestAndReadServerState(t *testing.T) {
@@ -174,5 +177,33 @@ func TestTaskQueueHTTPLifecycle(t *testing.T) {
 	}
 	if completed.Status != tasks.StatusCompleted || completed.Result.Stdout != "ok" {
 		t.Fatalf("completed = %#v", completed)
+	}
+}
+
+func TestAlertsCreatedFromIngest(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Alerts: config.AlertsConfig{MemoryLimit: 10}, Auth: config.AuthConfig{AdminToken: "admin-token"}}
+	server := newTestServer(t, cfg)
+	payload := []byte(`{"snapshots":[{"agent_name":"devbox","events":[{"type":"process.down","severity":"critical","subject":"nginx","message":"critical process is not running","timestamp":"2026-07-02T09:00:00Z"}],"collected_at":"2026-07-02T09:00:00Z"}]}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/agent/snapshots", bytes.NewReader(payload))
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("ingest status = %d body=%s", w.Code, w.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodGet, "/v1/alerts", nil)
+	req.Header.Set("Authorization", "Bearer admin-token")
+	w = httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("alerts status = %d body=%s", w.Code, w.Body.String())
+	}
+	var out struct {
+		Alerts []alerts.Alert `json:"alerts"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Alerts) != 1 || out.Alerts[0].Type != "process.down" || out.Alerts[0].Subject != "nginx" {
+		t.Fatalf("alerts = %#v", out.Alerts)
 	}
 }

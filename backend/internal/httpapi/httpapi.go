@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"backend/internal/alerts"
 	"backend/internal/config"
 	"backend/internal/ingest"
 	"backend/internal/security"
@@ -32,12 +33,13 @@ type Server struct {
 	ingest  *ingest.Service
 	pairing *security.PairingService
 	tasks   tasks.Store
+	alerts  *alerts.MemoryNotifier
 	logger  *zap.Logger
 	mux     *http.ServeMux
 }
 
-func NewServer(cfg config.Config, store store.Store, ingest *ingest.Service, pairing *security.PairingService, taskStore tasks.Store, logger *zap.Logger) *Server {
-	server := &Server{cfg: cfg, store: store, ingest: ingest, pairing: pairing, tasks: taskStore, logger: logger.Named("http"), mux: http.NewServeMux()}
+func NewServer(cfg config.Config, store store.Store, ingest *ingest.Service, pairing *security.PairingService, taskStore tasks.Store, alertMemory *alerts.MemoryNotifier, logger *zap.Logger) *Server {
+	server := &Server{cfg: cfg, store: store, ingest: ingest, pairing: pairing, tasks: taskStore, alerts: alertMemory, logger: logger.Named("http"), mux: http.NewServeMux()}
 	server.routes()
 	return server
 }
@@ -58,6 +60,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /v1/agent/snapshots", s.requireAgent(s.handleIngest))
 	s.mux.HandleFunc("GET /v1/agent/tasks", s.requireAgent(s.handlePollTasks))
 	s.mux.HandleFunc("POST /v1/agent/tasks/", s.requireAgent(s.handleCompleteTask))
+	s.mux.HandleFunc("GET /v1/alerts", s.requireAdmin(s.handleListAlerts))
 	s.mux.HandleFunc("GET /v1/servers", s.requireAdmin(s.handleListServers))
 	s.mux.HandleFunc("POST /v1/servers/", s.requireAdmin(s.handleServerAction))
 	s.mux.HandleFunc("GET /v1/tasks/", s.requireAdmin(s.handleGetTask))
@@ -197,6 +200,16 @@ func (s *Server) handleCompleteTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, task)
+}
+
+func (s *Server) handleListAlerts(w http.ResponseWriter, r *http.Request) {
+	limit := 50
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= 200 {
+			limit = parsed
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"alerts": s.alerts.Recent(limit)})
 }
 
 func (s *Server) handleListServers(w http.ResponseWriter, r *http.Request) {

@@ -19,6 +19,7 @@ type Config struct {
 	Pairing     PairingConfig
 	State       StateConfig
 	Mongo       MongoConfig
+	Alerts      AlertsConfig
 	Environment string
 }
 
@@ -60,6 +61,12 @@ type MongoConfig struct {
 	ConnectTimeout time.Duration
 }
 
+type AlertsConfig struct {
+	MemoryLimit      int
+	TelegramBotToken string
+	TelegramChatID   string
+}
+
 func Load() (Config, error) {
 	cfg := Config{
 		HTTP: HTTPConfig{
@@ -94,6 +101,11 @@ func Load() (Config, error) {
 			Database:       env("HOMELYTICS_MONGO_DATABASE", "homelytics"),
 			ConnectTimeout: envDuration("HOMELYTICS_MONGO_CONNECT_TIMEOUT", 5*time.Second),
 		},
+		Alerts: AlertsConfig{
+			MemoryLimit:      envInt("HOMELYTICS_ALERT_MEMORY_LIMIT", 200),
+			TelegramBotToken: os.Getenv("HOMELYTICS_TELEGRAM_BOT_TOKEN"),
+			TelegramChatID:   os.Getenv("HOMELYTICS_TELEGRAM_CHAT_ID"),
+		},
 		Environment: env("HOMELYTICS_ENV", "development"),
 	}
 	if cfg.TLS.Enabled && (cfg.TLS.CertFile == "" || cfg.TLS.KeyFile == "") {
@@ -113,6 +125,9 @@ func Load() (Config, error) {
 	}
 	if cfg.State.OfflineAfter <= 0 {
 		return Config{}, fmt.Errorf("HOMELYTICS_OFFLINE_AFTER must be positive")
+	}
+	if cfg.Alerts.MemoryLimit <= 0 {
+		return Config{}, fmt.Errorf("HOMELYTICS_ALERT_MEMORY_LIMIT must be positive")
 	}
 	if cfg.Mongo.Database == "" {
 		return Config{}, fmt.Errorf("HOMELYTICS_MONGO_DATABASE must not be empty")

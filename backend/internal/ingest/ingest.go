@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"backend/internal/alerts"
 	"backend/internal/domain"
 	"backend/internal/store"
 
@@ -15,16 +16,19 @@ import (
 var Module = fx.Module("ingest", fx.Provide(NewService))
 
 type Service struct {
-	store store.Store
+	store      store.Store
+	evaluator  *alerts.Evaluator
+	dispatcher *alerts.Dispatcher
 }
 
 type Result struct {
 	Accepted int                  `json:"accepted"`
 	States   []domain.ServerState `json:"states,omitempty"`
+	Alerts   []alerts.Alert       `json:"alerts,omitempty"`
 }
 
-func NewService(store store.Store) *Service {
-	return &Service{store: store}
+func NewService(store store.Store, evaluator *alerts.Evaluator, dispatcher *alerts.Dispatcher) *Service {
+	return &Service{store: store, evaluator: evaluator, dispatcher: dispatcher}
 }
 
 func (s *Service) Ingest(ctx context.Context, payload []byte) (Result, error) {
@@ -38,6 +42,7 @@ func (s *Service) Ingest(ctx context.Context, payload []byte) (Result, error) {
 		return Result{}, fmt.Errorf("snapshot envelope is empty")
 	}
 	states := make([]domain.ServerState, 0, len(raw.Snapshots))
+	allAlerts := make([]alerts.Alert, 0)
 	for _, item := range raw.Snapshots {
 		var snapshot domain.AgentSnapshot
 		if err := json.Unmarshal(item, &snapshot); err != nil {
@@ -55,6 +60,11 @@ func (s *Service) Ingest(ctx context.Context, payload []byte) (Result, error) {
 			return Result{}, err
 		}
 		states = append(states, state)
+		snapshotAlerts := s.evaluator.Evaluate(state)
+		if err := s.dispatcher.Dispatch(ctx, snapshotAlerts); err != nil {
+			return Result{}, err
+		}
+		allAlerts = append(allAlerts, snapshotAlerts...)
 	}
-	return Result{Accepted: len(states), States: states}, nil
+	return Result{Accepted: len(states), States: states, Alerts: allAlerts}, nil
 }

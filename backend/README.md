@@ -7,6 +7,7 @@ Production-shaped backend for the Homelytics hackathon product. It uses Fx for d
 - `config`: environment-driven configuration.
 - `store`: deep storage seam. Mongo adapter in production, memory adapter for tests/dev fallback.
 - `ingest`: accepts agent snapshot batches and converts them into current server state.
+- `alerts`: evaluates snapshot-derived incidents and sends best-effort notifications.
 - `httpapi`: HTTP routes, auth middleware, request limits, security headers, and graceful server lifecycle.
 - `app`: Fx composition root.
 
@@ -65,14 +66,23 @@ The backend stores the current server state in the `servers` collection with a u
 - `HOMELYTICS_MAX_EVENTS`, default `200`
 - `HOMELYTICS_MONGO_URI`, empty means in-memory fallback
 - `HOMELYTICS_MONGO_DATABASE`, default `homelytics`
+- `HOMELYTICS_ALERT_MEMORY_LIMIT`, default `200`
+- `HOMELYTICS_TELEGRAM_BOT_TOKEN`, optional
+- `HOMELYTICS_TELEGRAM_CHAT_ID`, optional
 - `HOMELYTICS_ENV`, default `development`
 
 ## API
 
 - `GET /healthz`
+- `POST /v1/pairing/claim`
 - `POST /v1/agent/snapshots`
+- `GET /v1/agent/tasks`
+- `POST /v1/agent/tasks/{task_id}/result`
+- `GET /v1/alerts`
 - `GET /v1/servers`
 - `GET /v1/servers/{id}`
+- `POST /v1/servers/{server_id}/tasks`
+- `GET /v1/tasks/{task_id}`
 
 ## Pairing and mTLS
 
@@ -120,3 +130,26 @@ curl -X POST http://localhost:8080/v1/servers/homelytics-devbox/tasks \
 ```
 
 Agents poll `GET /v1/agent/tasks?agent_id=<agent-name>` and report results to `POST /v1/agent/tasks/{task_id}/result`. The agent still executes only locally allowlisted YAML tasks.
+
+## Alerts
+
+Snapshot ingest evaluates alerts for:
+
+- critical agent events such as `process.down`
+- DNS/public IP mismatches
+- failed DNS checks
+- unreachable configured ports
+
+Recent alerts are available through:
+
+```bash
+curl -H 'Authorization: Bearer dev-admin-token' http://localhost:8080/v1/alerts
+```
+
+Optional Telegram notifications:
+
+```bash
+HOMELYTICS_TELEGRAM_BOT_TOKEN='123:abc' \
+HOMELYTICS_TELEGRAM_CHAT_ID='123456' \
+go run ./cmd/backend
+```
