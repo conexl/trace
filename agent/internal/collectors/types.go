@@ -7,6 +7,7 @@ type Snapshot struct {
 	Host      HostSnapshot      `json:"host"`
 	System    SystemSnapshot    `json:"system"`
 	Network   NetworkSnapshot   `json:"network"`
+	Hardware  HardwareSnapshot  `json:"hardware"`
 	Processes []ProcessSnapshot `json:"processes"`
 	Logs      []LogChunk        `json:"logs"`
 	Events    []Event           `json:"events"`
@@ -44,6 +45,29 @@ type DiskSnapshot struct {
 	Total       uint64  `json:"total"`
 	Free        uint64  `json:"free"`
 	UsedPercent float64 `json:"used_percent"`
+}
+
+type HardwareSnapshot struct {
+	Temperatures []TemperatureSensor `json:"temperatures"`
+	SMART        []SMARTDevice       `json:"smart"`
+	Power        PowerSnapshot       `json:"power"`
+}
+
+type TemperatureSensor struct {
+	Name        string  `json:"name"`
+	Temperature float64 `json:"temperature_celsius"`
+}
+
+type SMARTDevice struct {
+	Device  string `json:"device"`
+	Healthy bool   `json:"healthy"`
+	Summary string `json:"summary"`
+	Error   string `json:"error,omitempty"`
+}
+
+type PowerSnapshot struct {
+	Profile  string `json:"profile,omitempty"`
+	Governor string `json:"governor,omitempty"`
 }
 
 type NetworkSnapshot struct {

@@ -16,6 +16,7 @@ type Config struct {
 	Processes  []ProcessConfig `yaml:"processes"`
 	LogStreams []LogStream     `yaml:"log_streams"`
 	Tasks      []TaskConfig    `yaml:"tasks"`
+	Hardware   HardwareConfig  `yaml:"hardware"`
 	Power      PowerConfig     `yaml:"power"`
 	Buffer     BufferConfig    `yaml:"buffer"`
 }
@@ -80,6 +81,10 @@ type TaskConfig struct {
 	Command     []string      `yaml:"command"`
 	Timeout     time.Duration `yaml:"timeout"`
 	Description string        `yaml:"description"`
+}
+
+type HardwareConfig struct {
+	SmartDevices []string `yaml:"smart_devices"`
 }
 
 type PowerConfig struct {

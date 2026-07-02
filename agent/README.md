@@ -12,8 +12,8 @@ The agent writes JSONL snapshots to `homelytics-buffer.jsonl` and mirrors them t
 
 ## MVP Capabilities
 
-- System telemetry: host info, uptime, CPU, per-core CPU, memory, swap, disks.
-- Network audit: public IP, DNS A/AAAA records compared to public IP, TCP port checks, Rx/Tx counters per interface.
+- System telemetry: host info, uptime, CPU, per-core CPU, memory, swap, disks, temperatures, SMART health, and power profile/governor when available.
+- Network audit: public IP, DNS A/AAAA records compared to public IP, TCP port checks, listening TCP ports, and Rx/Tx counters per interface.
 - Process/service monitoring: process matching by name/cmdline plus native `systemd` on Linux and `launchd` on macOS where available.
 - Watchdog events: critical missing processes create events and can execute a configured restart policy.
 - Log tailing: bounded reads from configured files, so large logs do not explode memory.

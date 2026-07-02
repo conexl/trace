@@ -53,6 +53,7 @@ func main() {
 		collectors.NewNetworkCollector(),
 		collectors.NewProcessCollector(serviceManager),
 		collectors.NewLogCollector(),
+		collectors.NewHardwareCollector(),
 		buffer,
 		transportClient,
 	)

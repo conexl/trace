@@ -43,6 +43,9 @@ log_streams:
     path: /var/log/syslog
     max_bytes: 8192
 
+hardware:
+  smart_devices: [] # empty means best-effort smartctl --scan when smartctl is installed
+
 tasks:
   - name: disk-usage
     description: Print filesystem usage.

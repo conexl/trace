@@ -18,6 +18,7 @@ type Agent struct {
 	network   *collectors.NetworkCollector
 	processes *collectors.ProcessCollector
 	logs      *collectors.LogCollector
+	hardware  *collectors.HardwareCollector
 	buffer    logger.BufferedSink
 	transport transport.Client
 }
@@ -28,10 +29,11 @@ func NewAgent(
 	network *collectors.NetworkCollector,
 	processes *collectors.ProcessCollector,
 	logs *collectors.LogCollector,
+	hardware *collectors.HardwareCollector,
 	buffer logger.BufferedSink,
 	transport transport.Client,
 ) *Agent {
-	return &Agent{cfg: cfg, system: system, network: network, processes: processes, logs: logs, buffer: buffer, transport: transport}
+	return &Agent{cfg: cfg, system: system, network: network, processes: processes, logs: logs, hardware: hardware, buffer: buffer, transport: transport}
 }
 
 func (a *Agent) Run(ctx context.Context) error {
@@ -92,6 +94,7 @@ func (a *Agent) collectAndPublish(ctx context.Context) error {
 		Host:      host,
 		System:    system,
 		Network:   a.network.Collect(ctx, a.cfg.Network),
+		Hardware:  a.hardware.Collect(ctx, a.cfg.Hardware),
 		Processes: processes,
 		Logs:      a.logs.Collect(ctx, a.cfg.LogStreams),
 		Events:    events,
