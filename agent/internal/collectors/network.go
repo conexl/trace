@@ -30,10 +30,11 @@ func (c *NetworkCollector) Collect(ctx context.Context, cfg config.NetworkConfig
 	}
 
 	return NetworkSnapshot{
-		PublicIP: publicIP,
-		DNS:      c.checkDNS(ctx, cfg.DNSChecks, publicIP),
-		Ports:    c.checkPorts(ctx, cfg.PortChecks),
-		Traffic:  c.traffic(ctx),
+		PublicIP:  publicIP,
+		DNS:       c.checkDNS(ctx, cfg.DNSChecks, publicIP),
+		Ports:     c.checkPorts(ctx, cfg.PortChecks),
+		Traffic:   c.traffic(ctx),
+		Listening: collectListeningPorts(ctx),
 	}
 }
 

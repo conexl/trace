@@ -47,10 +47,11 @@ type DiskSnapshot struct {
 }
 
 type NetworkSnapshot struct {
-	PublicIP string           `json:"public_ip"`
-	DNS      []DNSResult      `json:"dns"`
-	Ports    []PortResult     `json:"ports"`
-	Traffic  []TrafficCounter `json:"traffic"`
+	PublicIP  string           `json:"public_ip"`
+	DNS       []DNSResult      `json:"dns"`
+	Ports     []PortResult     `json:"ports"`
+	Traffic   []TrafficCounter `json:"traffic"`
+	Listening []ListeningPort  `json:"listening_ports"`
 }
 
 type DNSResult struct {
@@ -75,6 +76,14 @@ type TrafficCounter struct {
 	BytesRecv uint64 `json:"bytes_recv"`
 }
 
+type ListeningPort struct {
+	Protocol string `json:"protocol"`
+	Address  string `json:"address"`
+	Port     uint16 `json:"port"`
+	PID      int    `json:"pid,omitempty"`
+	Process  string `json:"process,omitempty"`
+}
+
 type ProcessSnapshot struct {
 	Name       string  `json:"name"`
 	Match      string  `json:"match"`
@@ -91,6 +100,7 @@ type LogChunk struct {
 	Name      string    `json:"name"`
 	Path      string    `json:"path"`
 	Data      string    `json:"data"`
+	Offset    int64     `json:"offset"`
 	Truncated bool      `json:"truncated"`
 	Collected time.Time `json:"collected_at"`
 	Error     string    `json:"error,omitempty"`
