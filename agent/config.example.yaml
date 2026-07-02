@@ -48,6 +48,10 @@ log_streams:
     path: /var/log/syslog
     max_bytes: 8192
 
+update:
+  url: ""
+  sha256: ""
+
 remote:
   tasks_enabled: true
   shell_enabled: false

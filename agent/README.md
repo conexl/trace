@@ -36,9 +36,19 @@ The current agent executes only named tasks from the YAML allowlist. It does not
 
 Set `cloud.transport: http` and `cloud.endpoint` to send buffered snapshots to `POST /v1/agent/snapshots`. The default `none` transport keeps everything local for demos. When `cloud.mtls.ca_file`, `cert_file`, and `key_file` are configured, the HTTP client uses those credentials for mutual TLS. The transport seam is intentionally small so the HTTP client can be replaced with generated gRPC without touching collectors.
 
+## Self Update
+
+Configure `update.url` and `update.sha256`, then run:
+
+```bash
+homelytics-agent -config /etc/homelytics/agent.yaml -self-update
+```
+
+The updater downloads to a temporary file, verifies SHA256 when configured, chmods it executable, and atomically replaces the target binary. Under `systemd` or `launchd`, the supervisor can restart the daemon after the replacement. Example service files live in `deploy/`.
+
 ## Next Milestone
 
-- Generate Go code from `proto/agent.proto` and add a real mTLS gRPC sink.
+- Generate Go code from `proto/agent.proto` and add a real gRPC sink.
 - Add pairing flow for one-time token enrollment.
 - Add PTY streaming for remote shell behind an explicit allowlist and audit log.
 - Add Telegram alert worker on the backend side.

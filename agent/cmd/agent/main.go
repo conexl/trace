@@ -16,6 +16,7 @@ import (
 	"agent/internal/logger"
 	"agent/internal/services"
 	"agent/internal/transport"
+	"agent/internal/updater"
 )
 
 func main() {
@@ -23,6 +24,8 @@ func main() {
 	once := flag.Bool("once", false, "collect one snapshot and exit")
 	listTasks := flag.Bool("list-tasks", false, "list configured remote tasks and exit")
 	runTask := flag.String("run-task", "", "run one configured task and exit")
+	selfUpdate := flag.Bool("self-update", false, "download and atomically replace the agent binary")
+	updateTarget := flag.String("update-target", "", "override self-update target path")
 	flag.Parse()
 
 	cfg, err := config.Load(*configPath)
@@ -36,6 +39,16 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	if *selfUpdate {
+		result, err := updater.New().Apply(ctx, cfg.Update.URL, cfg.Update.SHA256, *updateTarget)
+		writeJSON(result)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "update error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	runner := commands.NewRunner(cfg)
 	if *listTasks {

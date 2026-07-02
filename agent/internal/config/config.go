@@ -17,6 +17,7 @@ type Config struct {
 	LogStreams []LogStream     `yaml:"log_streams"`
 	Tasks      []TaskConfig    `yaml:"tasks"`
 	Remote     RemoteConfig    `yaml:"remote"`
+	Update     UpdateConfig    `yaml:"update"`
 	Hardware   HardwareConfig  `yaml:"hardware"`
 	Power      PowerConfig     `yaml:"power"`
 	Buffer     BufferConfig    `yaml:"buffer"`
@@ -96,6 +97,11 @@ type RemoteConfig struct {
 	TasksEnabled bool   `yaml:"tasks_enabled"`
 	ShellEnabled bool   `yaml:"shell_enabled"`
 	AuditPath    string `yaml:"audit_path"`
+}
+
+type UpdateConfig struct {
+	URL    string `yaml:"url"`
+	SHA256 string `yaml:"sha256"`
 }
 
 type HardwareConfig struct {
