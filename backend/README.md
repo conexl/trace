@@ -73,3 +73,37 @@ The backend stores the current server state in the `servers` collection with a u
 - `POST /v1/agent/snapshots`
 - `GET /v1/servers`
 - `GET /v1/servers/{id}`
+
+## Pairing and mTLS
+
+Pairing issues an agent client certificate from the backend pairing CA. In development, if no CA files are configured, the backend creates an ephemeral in-memory CA for quick demos. In production, configure persistent CA files.
+
+```bash
+HOMELYTICS_PAIRING_TOKENS=pair-once \
+HOMELYTICS_PAIRING_CA_CERT_FILE=/etc/homelytics/ca.pem \
+HOMELYTICS_PAIRING_CA_KEY_FILE=/etc/homelytics/ca-key.pem \
+HOMELYTICS_PAIRING_CERT_TTL=720h \
+go run ./cmd/backend
+```
+
+Claim credentials once:
+
+```bash
+curl -X POST http://localhost:8080/v1/pairing/claim \
+  -H 'Authorization: Bearer pair-once' \
+  -H 'Content-Type: application/json' \
+  -d '{"agent_name":"home-mini","hostname":"mac-mini"}'
+```
+
+Enable backend TLS and require agent client certificates for ingest:
+
+```bash
+HOMELYTICS_TLS_ENABLED=true \
+HOMELYTICS_TLS_CERT_FILE=/etc/homelytics/server.pem \
+HOMELYTICS_TLS_KEY_FILE=/etc/homelytics/server-key.pem \
+HOMELYTICS_TLS_CLIENT_CA_FILE=/etc/homelytics/ca.pem \
+HOMELYTICS_TLS_REQUIRE_CLIENT_CERT=true \
+go run ./cmd/backend
+```
+
+When mTLS is enabled, `POST /v1/agent/snapshots` accepts verified client certificates. Bearer ingest tokens remain available for local development and migration.

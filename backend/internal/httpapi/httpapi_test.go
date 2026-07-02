@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +12,7 @@ import (
 
 	"backend/internal/config"
 	"backend/internal/ingest"
+	"backend/internal/security"
 	"backend/internal/store"
 
 	"go.uber.org/zap/zaptest"
@@ -24,7 +27,12 @@ func newTestServer(t *testing.T, cfg config.Config) *Server {
 		cfg.State.MaxEvents = 10
 	}
 	memory := store.NewMemoryStore(cfg)
-	return NewServer(cfg, memory, ingest.NewService(memory), zaptest.NewLogger(t))
+	ca, err := security.NewCertificateAuthority(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pairing := security.NewPairingService(cfg, ca)
+	return NewServer(cfg, memory, ingest.NewService(memory), pairing, zaptest.NewLogger(t))
 }
 
 func TestIngestAndReadServerState(t *testing.T) {
@@ -77,5 +85,37 @@ func TestAdminTokenProtectsReadAPI(t *testing.T) {
 	server.securityHeaders(server.mux).ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d", w.Code)
+	}
+}
+
+func TestPairingClaimEndpoint(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Pairing: config.PairingConfig{Tokens: map[string]struct{}{"pair-once": {}}, CertTTL: time.Hour}}
+	server := newTestServer(t, cfg)
+	req := httptest.NewRequest(http.MethodPost, "/v1/pairing/claim", bytes.NewReader([]byte(`{"agent_name":"devbox","hostname":"arch"}`)))
+	req.Header.Set("Authorization", "Bearer pair-once")
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp["agent_id"] == "" || resp["certificate_pem"] == "" || resp["private_key_pem"] == "" {
+		t.Fatalf("response = %#v", resp)
+	}
+}
+
+func TestIngestAllowsVerifiedClientCertificate(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Auth: config.AuthConfig{IngestTokens: map[string]struct{}{"agent-token": {}}}}
+	server := newTestServer(t, cfg)
+	payload := []byte(`{"snapshots":[{"agent_name":"mtls-agent","collected_at":"2026-07-02T09:00:00Z"}]}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/agent/snapshots", bytes.NewReader(payload))
+	req.TLS = &tls.ConnectionState{VerifiedChains: [][]*x509.Certificate{{{}}}, PeerCertificates: []*x509.Certificate{{}}}
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
 	}
 }

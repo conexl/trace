@@ -2,16 +2,20 @@ package httpapi
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	"backend/internal/config"
 	"backend/internal/ingest"
+	"backend/internal/security"
 	"backend/internal/store"
 
 	"go.uber.org/fx"
@@ -21,15 +25,16 @@ import (
 var Module = fx.Module("httpapi", fx.Provide(NewServer), fx.Invoke(RegisterLifecycle))
 
 type Server struct {
-	cfg    config.Config
-	store  store.Store
-	ingest *ingest.Service
-	logger *zap.Logger
-	mux    *http.ServeMux
+	cfg     config.Config
+	store   store.Store
+	ingest  *ingest.Service
+	pairing *security.PairingService
+	logger  *zap.Logger
+	mux     *http.ServeMux
 }
 
-func NewServer(cfg config.Config, store store.Store, ingest *ingest.Service, logger *zap.Logger) *Server {
-	server := &Server{cfg: cfg, store: store, ingest: ingest, logger: logger.Named("http"), mux: http.NewServeMux()}
+func NewServer(cfg config.Config, store store.Store, ingest *ingest.Service, pairing *security.PairingService, logger *zap.Logger) *Server {
+	server := &Server{cfg: cfg, store: store, ingest: ingest, pairing: pairing, logger: logger.Named("http"), mux: http.NewServeMux()}
 	server.routes()
 	return server
 }
@@ -40,11 +45,13 @@ func (s *Server) HTTPServer() *http.Server {
 		Handler:      s.securityHeaders(s.mux),
 		ReadTimeout:  s.cfg.HTTP.ReadTimeout,
 		WriteTimeout: s.cfg.HTTP.WriteTimeout,
+		TLSConfig:    s.tlsConfig(),
 	}
 }
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
+	s.mux.HandleFunc("POST /v1/pairing/claim", s.handlePairingClaim)
 	s.mux.HandleFunc("POST /v1/agent/snapshots", s.requireIngest(s.handleIngest))
 	s.mux.HandleFunc("GET /v1/servers", s.requireAdmin(s.handleListServers))
 	s.mux.HandleFunc("GET /v1/servers/", s.requireAdmin(s.handleGetServer))
@@ -56,7 +63,7 @@ func RegisterLifecycle(lc fx.Lifecycle, api *Server, logger *zap.Logger, cfg con
 		OnStart: func(ctx context.Context) error {
 			go func() {
 				logger.Info("http server listening", zap.String("addr", httpServer.Addr))
-				if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				if err := listenAndServe(httpServer, cfg); err != nil && !errors.Is(err, http.ErrServerClosed) {
 					logger.Error("http server failed", zap.Error(err))
 				}
 			}()
@@ -72,6 +79,22 @@ func RegisterLifecycle(lc fx.Lifecycle, api *Server, logger *zap.Logger, cfg con
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "time": time.Now().UTC()})
+}
+
+func (s *Server) handlePairingClaim(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	token := bearerToken(r.Header.Get("Authorization"))
+	var req security.PairingRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid pairing request")
+		return
+	}
+	resp, err := s.pairing.Claim(r.Context(), token, req)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, resp)
 }
 
 func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
@@ -119,6 +142,10 @@ func (s *Server) handleGetServer(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) requireIngest(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if hasVerifiedClientCertificate(r) {
+			next(w, r)
+			return
+		}
 		token := bearerToken(r.Header.Get("Authorization"))
 		if !s.cfg.Auth.AllowsIngest(token) {
 			writeError(w, http.StatusUnauthorized, "invalid ingest token")
@@ -170,4 +197,31 @@ func writeError(w http.ResponseWriter, status int, message string) {
 
 func URLForServer(id string) string {
 	return fmt.Sprintf("/v1/servers/%s", id)
+}
+
+func (s *Server) tlsConfig() *tls.Config {
+	if !s.cfg.TLS.Enabled {
+		return nil
+	}
+	cfg := &tls.Config{MinVersion: tls.VersionTLS12}
+	if s.cfg.TLS.RequireClientCert {
+		pool := x509.NewCertPool()
+		caPEM, err := os.ReadFile(s.cfg.TLS.ClientCAFile)
+		if err == nil && pool.AppendCertsFromPEM(caPEM) {
+			cfg.ClientCAs = pool
+			cfg.ClientAuth = tls.RequireAndVerifyClientCert
+		}
+	}
+	return cfg
+}
+
+func listenAndServe(server *http.Server, cfg config.Config) error {
+	if cfg.TLS.Enabled {
+		return server.ListenAndServeTLS(cfg.TLS.CertFile, cfg.TLS.KeyFile)
+	}
+	return server.ListenAndServe()
+}
+
+func hasVerifiedClientCertificate(r *http.Request) bool {
+	return r.TLS != nil && len(r.TLS.VerifiedChains) > 0 && len(r.TLS.PeerCertificates) > 0
 }

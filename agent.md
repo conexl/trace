@@ -40,3 +40,7 @@ cloud:
 ## Backend demo
 
 Запусти `backend` с `HOMELYTICS_INGEST_TOKENS`, затем поставь тот же token в `agent/config.example.yaml` в `cloud.token` и `cloud.endpoint: http://localhost:8080`.
+
+## Pairing/mTLS статус
+
+Backend теперь умеет `/v1/pairing/claim`: one-time token -> client cert/key/CA PEM. Agent HTTP transport уже умеет читать `cloud.mtls.ca_file`, `cert_file`, `key_file`. Следующий agent-шаг: добавить CLI `-pair` для вызова pairing endpoint и сохранения PEM-файлов в локальный config directory.

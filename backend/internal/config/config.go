@@ -14,7 +14,9 @@ var Module = fx.Module("config", fx.Provide(Load))
 
 type Config struct {
 	HTTP        HTTPConfig
+	TLS         TLSConfig
 	Auth        AuthConfig
+	Pairing     PairingConfig
 	State       StateConfig
 	Mongo       MongoConfig
 	Environment string
@@ -27,9 +29,24 @@ type HTTPConfig struct {
 	ShutdownTimeout time.Duration
 }
 
+type TLSConfig struct {
+	Enabled           bool
+	CertFile          string
+	KeyFile           string
+	ClientCAFile      string
+	RequireClientCert bool
+}
+
 type AuthConfig struct {
 	IngestTokens map[string]struct{}
 	AdminToken   string
+}
+
+type PairingConfig struct {
+	Tokens     map[string]struct{}
+	CACertFile string
+	CAKeyFile  string
+	CertTTL    time.Duration
 }
 
 type StateConfig struct {
@@ -51,9 +68,22 @@ func Load() (Config, error) {
 			WriteTimeout:    envDuration("HOMELYTICS_HTTP_WRITE_TIMEOUT", 10*time.Second),
 			ShutdownTimeout: envDuration("HOMELYTICS_HTTP_SHUTDOWN_TIMEOUT", 5*time.Second),
 		},
+		TLS: TLSConfig{
+			Enabled:           envBool("HOMELYTICS_TLS_ENABLED", false),
+			CertFile:          os.Getenv("HOMELYTICS_TLS_CERT_FILE"),
+			KeyFile:           os.Getenv("HOMELYTICS_TLS_KEY_FILE"),
+			ClientCAFile:      os.Getenv("HOMELYTICS_TLS_CLIENT_CA_FILE"),
+			RequireClientCert: envBool("HOMELYTICS_TLS_REQUIRE_CLIENT_CERT", false),
+		},
 		Auth: AuthConfig{
 			IngestTokens: parseTokenSet(os.Getenv("HOMELYTICS_INGEST_TOKENS")),
 			AdminToken:   os.Getenv("HOMELYTICS_ADMIN_TOKEN"),
+		},
+		Pairing: PairingConfig{
+			Tokens:     parseTokenSet(os.Getenv("HOMELYTICS_PAIRING_TOKENS")),
+			CACertFile: os.Getenv("HOMELYTICS_PAIRING_CA_CERT_FILE"),
+			CAKeyFile:  os.Getenv("HOMELYTICS_PAIRING_CA_KEY_FILE"),
+			CertTTL:    envDuration("HOMELYTICS_PAIRING_CERT_TTL", 24*time.Hour),
 		},
 		State: StateConfig{
 			OfflineAfter: envDuration("HOMELYTICS_OFFLINE_AFTER", 3*time.Minute),
@@ -65,6 +95,18 @@ func Load() (Config, error) {
 			ConnectTimeout: envDuration("HOMELYTICS_MONGO_CONNECT_TIMEOUT", 5*time.Second),
 		},
 		Environment: env("HOMELYTICS_ENV", "development"),
+	}
+	if cfg.TLS.Enabled && (cfg.TLS.CertFile == "" || cfg.TLS.KeyFile == "") {
+		return Config{}, fmt.Errorf("HOMELYTICS_TLS_CERT_FILE and HOMELYTICS_TLS_KEY_FILE are required when TLS is enabled")
+	}
+	if cfg.TLS.RequireClientCert && cfg.TLS.ClientCAFile == "" {
+		return Config{}, fmt.Errorf("HOMELYTICS_TLS_CLIENT_CA_FILE is required when client certs are required")
+	}
+	if cfg.Pairing.CertTTL <= 0 {
+		return Config{}, fmt.Errorf("HOMELYTICS_PAIRING_CERT_TTL must be positive")
+	}
+	if cfg.Environment == "production" && len(cfg.Pairing.Tokens) > 0 && (cfg.Pairing.CACertFile == "" || cfg.Pairing.CAKeyFile == "") {
+		return Config{}, fmt.Errorf("pairing CA files are required in production")
 	}
 	if cfg.State.MaxEvents <= 0 {
 		return Config{}, fmt.Errorf("HOMELYTICS_MAX_EVENTS must be positive")
@@ -110,6 +152,18 @@ func envDuration(key string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return duration
+}
+
+func envBool(key string, fallback bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }
 
 func envInt(key string, fallback int) int {
