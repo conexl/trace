@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 	"syscall"
 
 	"agent/internal/collectors"
+	"agent/internal/commands"
 	"agent/internal/config"
 	"agent/internal/logger"
 	"agent/internal/services"
@@ -19,6 +21,8 @@ import (
 func main() {
 	configPath := flag.String("config", "", "path to YAML config")
 	once := flag.Bool("once", false, "collect one snapshot and exit")
+	listTasks := flag.Bool("list-tasks", false, "list configured remote tasks and exit")
+	runTask := flag.String("run-task", "", "run one configured task and exit")
 	flag.Parse()
 
 	cfg, err := config.Load(*configPath)
@@ -32,6 +36,21 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	runner := commands.NewRunner(cfg)
+	if *listTasks {
+		writeJSON(runner.List())
+		return
+	}
+	if *runTask != "" {
+		result, err := runner.Run(ctx, *runTask)
+		writeJSON(result)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "task error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	buffer, err := logger.NewJSONLBuffer(cfg.Buffer)
 	if err != nil {
@@ -74,4 +93,10 @@ func buildTransport(cfg config.Config) (transport.Client, error) {
 	default:
 		return nil, fmt.Errorf("unsupported cloud transport %q", cfg.Cloud.Transport)
 	}
+}
+
+func writeJSON(value any) {
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	_ = encoder.Encode(value)
 }

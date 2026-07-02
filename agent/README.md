@@ -10,6 +10,13 @@ go run ./cmd/agent -config ./config.example.yaml -once
 
 The agent writes JSONL snapshots to `homelytics-buffer.jsonl` and mirrors them to stdout by default.
 
+List or run allowlisted tasks locally:
+
+```bash
+go run ./cmd/agent -config ./config.example.yaml -list-tasks
+go run ./cmd/agent -config ./config.example.yaml -run-task disk-usage
+```
+
 ## MVP Capabilities
 
 - System telemetry: host info, uptime, CPU, per-core CPU, memory, swap, disks, temperatures, SMART health, and power profile/governor when available.
@@ -19,7 +26,11 @@ The agent writes JSONL snapshots to `homelytics-buffer.jsonl` and mirrors them t
 - Log tailing: bounded reads from configured files, so large logs do not explode memory.
 - Power guard: optional sleep inhibition via `systemd-inhibit` on Linux or `caffeinate` on macOS.
 - Offline buffer: snapshots are appended to JSONL, replayed in batches, and acked only after successful upload.
-- Remote tasks: safe command runner for preconfigured tasks only.
+- Remote tasks: safe command runner for preconfigured tasks only, with JSONL audit events and a disabled-by-default shell policy.
+
+## Remote Execution Safety
+
+The current agent executes only named tasks from the YAML allowlist. It does not invoke a shell, so shell metacharacters are passed as plain argv values. Each accepted or rejected run is appended to `remote.audit_path`. Interactive PTY shell is intentionally rejected by config validation until mTLS identity and cloud-side authorization exist.
 
 ## Agent Transport
 

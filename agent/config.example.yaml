@@ -43,6 +43,11 @@ log_streams:
     path: /var/log/syslog
     max_bytes: 8192
 
+remote:
+  tasks_enabled: true
+  shell_enabled: false
+  audit_path: ./homelytics-audit.jsonl
+
 hardware:
   smart_devices: [] # empty means best-effort smartctl --scan when smartctl is installed
 

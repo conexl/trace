@@ -4,6 +4,7 @@
 
 # Runtime buffers and logs
 /agent/*.jsonl
+/agent/homelytics-audit.jsonl
 *.log
 
 # Local secrets and generated certs

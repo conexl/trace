@@ -16,6 +16,7 @@ type Config struct {
 	Processes  []ProcessConfig `yaml:"processes"`
 	LogStreams []LogStream     `yaml:"log_streams"`
 	Tasks      []TaskConfig    `yaml:"tasks"`
+	Remote     RemoteConfig    `yaml:"remote"`
 	Hardware   HardwareConfig  `yaml:"hardware"`
 	Power      PowerConfig     `yaml:"power"`
 	Buffer     BufferConfig    `yaml:"buffer"`
@@ -83,6 +84,12 @@ type TaskConfig struct {
 	Description string        `yaml:"description"`
 }
 
+type RemoteConfig struct {
+	TasksEnabled bool   `yaml:"tasks_enabled"`
+	ShellEnabled bool   `yaml:"shell_enabled"`
+	AuditPath    string `yaml:"audit_path"`
+}
+
 type HardwareConfig struct {
 	SmartDevices []string `yaml:"smart_devices"`
 }
@@ -110,6 +117,11 @@ func Default() Config {
 		},
 		Network: NetworkConfig{
 			PublicIPURL: "https://api.ipify.org",
+		},
+		Remote: RemoteConfig{
+			TasksEnabled: true,
+			ShellEnabled: false,
+			AuditPath:    "./homelytics-audit.jsonl",
 		},
 		Power: PowerConfig{
 			PreventSleep: false,
@@ -159,6 +171,9 @@ func (c *Config) applyDefaults() {
 	if c.Cloud.ReplayEvery <= 0 {
 		c.Cloud.ReplayEvery = 15 * time.Second
 	}
+	if c.Remote.AuditPath == "" {
+		c.Remote.AuditPath = "./homelytics-audit.jsonl"
+	}
 	if c.Network.PublicIPURL == "" {
 		c.Network.PublicIPURL = "https://api.ipify.org"
 	}
@@ -191,6 +206,9 @@ func (c *Config) applyDefaults() {
 }
 
 func (c Config) Validate() error {
+	if c.Remote.ShellEnabled {
+		return errors.New("remote shell is not implemented yet; keep remote.shell_enabled=false")
+	}
 	if c.Cloud.Transport != "none" && c.Cloud.Transport != "http" {
 		return fmt.Errorf("cloud transport %q is not supported", c.Cloud.Transport)
 	}
