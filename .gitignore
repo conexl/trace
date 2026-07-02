@@ -1,0 +1,12 @@
+# Go build outputs
+/agent/agent
+/agent/homelytics-agent
+
+# Runtime buffers and logs
+/agent/*.jsonl
+*.log
+
+# Local secrets and generated certs
+/agent/certs/
+*.pem
+*.key

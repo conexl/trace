@@ -1,0 +1,55 @@
+agent:
+  name: homelytics-devbox
+  interval: 10s
+
+cloud:
+  endpoint: localhost:7443
+  token: paste-one-time-pairing-token-here
+  mtls:
+    ca_file: ./certs/ca.pem
+    cert_file: ./certs/agent.pem
+    key_file: ./certs/agent-key.pem
+
+network:
+  public_ip_url: https://api.ipify.org
+  dns_checks:
+    - name: main-domain
+      domain: example.com
+  port_checks:
+    - name: local-ssh
+      address: 127.0.0.1:22
+      timeout: 2s
+    - name: local-web
+      address: 127.0.0.1:8080
+      timeout: 2s
+
+processes:
+  - name: sshd
+    match: sshd
+    service: ssh
+    critical: true
+    restart: false
+  - name: nginx
+    match: nginx
+    service: nginx
+    critical: false
+    restart: false
+
+log_streams:
+  - name: system
+    path: /var/log/syslog
+    max_bytes: 8192
+
+tasks:
+  - name: disk-usage
+    description: Print filesystem usage.
+    command: ["df", "-h"]
+    timeout: 10s
+
+power:
+  prevent_sleep: false
+
+buffer:
+  path: ./homelytics-buffer.jsonl
+  max_events: 1000
+  mirror_to_stdout: true
