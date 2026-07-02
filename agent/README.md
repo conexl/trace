@@ -30,7 +30,7 @@ go run ./cmd/agent -config ./config.example.yaml -run-task disk-usage
 
 ## Remote Execution Safety
 
-The current agent executes only named tasks from the YAML allowlist. It does not invoke a shell, so shell metacharacters are passed as plain argv values. Each accepted or rejected run is appended to `remote.audit_path`. Interactive PTY shell is intentionally rejected by config validation until mTLS identity and cloud-side authorization exist.
+The current agent executes only named tasks from the YAML allowlist. It does not invoke a shell, so shell metacharacters are passed as plain argv values. Each accepted or rejected run is appended to `remote.audit_path`. Agent-side PTY shell primitives are implemented, but `remote.shell_enabled` stays rejected by config validation until mTLS identity and cloud-side authorization exist. This keeps the dangerous path present for integration work without making it accidentally reachable in demos.
 
 ## Agent Transport
 
