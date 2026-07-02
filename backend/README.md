@@ -107,3 +107,16 @@ go run ./cmd/backend
 ```
 
 When `HOMELYTICS_TLS_REQUIRE_CLIENT_CERT=true`, `POST /v1/agent/snapshots` requires a verified client certificate. Bearer ingest tokens remain available when that flag is false for local development and migration.
+
+## Remote Tasks
+
+Queue an allowlisted task for an agent/server:
+
+```bash
+curl -X POST http://localhost:8080/v1/servers/homelytics-devbox/tasks \
+  -H 'Authorization: Bearer dev-admin-token' \
+  -H 'Content-Type: application/json' \
+  -d '{"task_name":"disk-usage"}'
+```
+
+Agents poll `GET /v1/agent/tasks?agent_id=<agent-name>` and report results to `POST /v1/agent/tasks/{task_id}/result`. The agent still executes only locally allowlisted YAML tasks.

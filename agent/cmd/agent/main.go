@@ -16,6 +16,7 @@ import (
 	"agent/internal/logger"
 	"agent/internal/pairing"
 	"agent/internal/services"
+	"agent/internal/tasksclient"
 	"agent/internal/transport"
 	"agent/internal/updater"
 )
@@ -108,6 +109,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "transport error: %v\n", err)
 		os.Exit(1)
 	}
+	taskClient, err := buildTaskClient(cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "task client error: %v\n", err)
+		os.Exit(1)
+	}
 
 	serviceManager := collectors.NewServiceManager()
 	agent := services.NewAgent(
@@ -119,6 +125,8 @@ func main() {
 		collectors.NewHardwareCollector(),
 		buffer,
 		transportClient,
+		taskClient,
+		runner,
 	)
 
 	slog.Info("homelytics agent started", "name", cfg.Agent.Name, "interval", cfg.Agent.Interval)
@@ -137,6 +145,13 @@ func buildTransport(cfg config.Config) (transport.Client, error) {
 	default:
 		return nil, fmt.Errorf("unsupported cloud transport %q", cfg.Cloud.Transport)
 	}
+}
+
+func buildTaskClient(cfg config.Config) (*tasksclient.Client, error) {
+	if cfg.Cloud.Transport == "none" || !cfg.Remote.TasksEnabled {
+		return nil, nil
+	}
+	return tasksclient.New(cfg.Cloud)
 }
 
 func writeJSON(value any) {

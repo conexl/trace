@@ -56,6 +56,7 @@ remote:
   tasks_enabled: true
   shell_enabled: false
   audit_path: ./homelytics-audit.jsonl
+  poll_every: 15s
 
 hardware:
   smart_devices: [] # empty means best-effort smartctl --scan when smartctl is installed

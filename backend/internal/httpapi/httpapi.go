@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"backend/internal/ingest"
 	"backend/internal/security"
 	"backend/internal/store"
+	"backend/internal/tasks"
 
 	"go.uber.org/fx"
 	"go.uber.org/zap"
@@ -29,12 +31,13 @@ type Server struct {
 	store   store.Store
 	ingest  *ingest.Service
 	pairing *security.PairingService
+	tasks   tasks.Store
 	logger  *zap.Logger
 	mux     *http.ServeMux
 }
 
-func NewServer(cfg config.Config, store store.Store, ingest *ingest.Service, pairing *security.PairingService, logger *zap.Logger) *Server {
-	server := &Server{cfg: cfg, store: store, ingest: ingest, pairing: pairing, logger: logger.Named("http"), mux: http.NewServeMux()}
+func NewServer(cfg config.Config, store store.Store, ingest *ingest.Service, pairing *security.PairingService, taskStore tasks.Store, logger *zap.Logger) *Server {
+	server := &Server{cfg: cfg, store: store, ingest: ingest, pairing: pairing, tasks: taskStore, logger: logger.Named("http"), mux: http.NewServeMux()}
 	server.routes()
 	return server
 }
@@ -52,8 +55,12 @@ func (s *Server) HTTPServer() *http.Server {
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
 	s.mux.HandleFunc("POST /v1/pairing/claim", s.handlePairingClaim)
-	s.mux.HandleFunc("POST /v1/agent/snapshots", s.requireIngest(s.handleIngest))
+	s.mux.HandleFunc("POST /v1/agent/snapshots", s.requireAgent(s.handleIngest))
+	s.mux.HandleFunc("GET /v1/agent/tasks", s.requireAgent(s.handlePollTasks))
+	s.mux.HandleFunc("POST /v1/agent/tasks/", s.requireAgent(s.handleCompleteTask))
 	s.mux.HandleFunc("GET /v1/servers", s.requireAdmin(s.handleListServers))
+	s.mux.HandleFunc("POST /v1/servers/", s.requireAdmin(s.handleServerAction))
+	s.mux.HandleFunc("GET /v1/tasks/", s.requireAdmin(s.handleGetTask))
 	s.mux.HandleFunc("GET /v1/servers/", s.requireAdmin(s.handleGetServer))
 }
 
@@ -112,6 +119,86 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, map[string]any{"accepted": result.Accepted})
 }
 
+func (s *Server) handleServerAction(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/v1/servers/")
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] != "tasks" {
+		writeError(w, http.StatusNotFound, "server action not found")
+		return
+	}
+	var req struct {
+		TaskName string `json:"task_name"`
+	}
+	defer r.Body.Close()
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid task request")
+		return
+	}
+	if req.TaskName == "" {
+		writeError(w, http.StatusBadRequest, "task_name is required")
+		return
+	}
+	task, err := s.tasks.Enqueue(r.Context(), parts[0], req.TaskName)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "enqueue task failed")
+		return
+	}
+	writeJSON(w, http.StatusAccepted, task)
+}
+
+func (s *Server) handlePollTasks(w http.ResponseWriter, r *http.Request) {
+	serverID := r.URL.Query().Get("agent_id")
+	if serverID == "" {
+		serverID = r.URL.Query().Get("server_id")
+	}
+	if serverID == "" {
+		writeError(w, http.StatusBadRequest, "agent_id is required")
+		return
+	}
+	limit := 1
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= 10 {
+			limit = parsed
+		}
+	}
+	tasks, err := s.tasks.ClaimPending(r.Context(), serverID, limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "poll tasks failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tasks": tasks})
+}
+
+func (s *Server) handleCompleteTask(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/v1/agent/tasks/")
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] != "result" {
+		writeError(w, http.StatusNotFound, "task action not found")
+		return
+	}
+	var req tasks.TaskResult
+	defer r.Body.Close()
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid task result")
+		return
+	}
+	task, err := s.tasks.Complete(r.Context(), parts[0], req)
+	if err != nil {
+		var notFound tasks.ErrNotFound
+		var invalid tasks.ErrInvalidState
+		switch {
+		case errors.As(err, &notFound):
+			writeError(w, http.StatusNotFound, "task not found")
+		case errors.As(err, &invalid):
+			writeError(w, http.StatusConflict, err.Error())
+		default:
+			writeError(w, http.StatusInternalServerError, "complete task failed")
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, task)
+}
+
 func (s *Server) handleListServers(w http.ResponseWriter, r *http.Request) {
 	servers, err := s.store.ListServers(r.Context(), time.Now())
 	if err != nil {
@@ -119,6 +206,25 @@ func (s *Server) handleListServers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"servers": servers})
+}
+
+func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
+	taskID := strings.TrimPrefix(r.URL.Path, "/v1/tasks/")
+	if taskID == "" || strings.Contains(taskID, "/") {
+		writeError(w, http.StatusNotFound, "task not found")
+		return
+	}
+	task, err := s.tasks.Get(r.Context(), taskID)
+	if err != nil {
+		var notFound tasks.ErrNotFound
+		if errors.As(err, &notFound) {
+			writeError(w, http.StatusNotFound, "task not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "get task failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, task)
 }
 
 func (s *Server) handleGetServer(w http.ResponseWriter, r *http.Request) {
@@ -140,7 +246,7 @@ func (s *Server) handleGetServer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, state)
 }
 
-func (s *Server) requireIngest(next http.HandlerFunc) http.HandlerFunc {
+func (s *Server) requireAgent(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if hasVerifiedClientCertificate(r) {
 			next(w, r)

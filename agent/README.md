@@ -62,3 +62,7 @@ go run ./cmd/agent -config ./config.example.yaml -pair -pair-dir ./certs
 ```
 
 The command writes `ca.pem`, `agent.pem`, and `agent-key.pem` with `0600` permissions and prints the paths as JSON. Set `cloud.mtls.*` to those paths before running the daemon over HTTPS/mTLS.
+
+## Remote Task Polling
+
+When `cloud.transport: http` and `remote.tasks_enabled: true`, the agent polls the backend every `remote.poll_every` for tasks targeting `agent.name`. Only tasks declared in the local YAML `tasks:` allowlist are executed, and every attempt is written to the audit JSONL.

@@ -14,6 +14,7 @@ import (
 	"backend/internal/ingest"
 	"backend/internal/security"
 	"backend/internal/store"
+	"backend/internal/tasks"
 
 	"go.uber.org/zap/zaptest"
 )
@@ -32,7 +33,7 @@ func newTestServer(t *testing.T, cfg config.Config) *Server {
 		t.Fatal(err)
 	}
 	pairing := security.NewPairingService(cfg, ca)
-	return NewServer(cfg, memory, ingest.NewService(memory), pairing, zaptest.NewLogger(t))
+	return NewServer(cfg, memory, ingest.NewService(memory), pairing, tasks.NewMemoryStore(), zaptest.NewLogger(t))
 }
 
 func TestIngestAndReadServerState(t *testing.T) {
@@ -130,5 +131,48 @@ func TestIngestRequiresClientCertificateWhenConfigured(t *testing.T) {
 	server.securityHeaders(server.mux).ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestTaskQueueHTTPLifecycle(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Auth: config.AuthConfig{AdminToken: "admin-token"}}
+	server := newTestServer(t, cfg)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/servers/devbox/tasks", bytes.NewReader([]byte(`{"task_name":"disk-usage"}`)))
+	req.Header.Set("Authorization", "Bearer admin-token")
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("enqueue status = %d body=%s", w.Code, w.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/agent/tasks?agent_id=devbox", nil)
+	w = httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("poll status = %d body=%s", w.Code, w.Body.String())
+	}
+	var poll struct {
+		Tasks []tasks.Task `json:"tasks"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &poll); err != nil {
+		t.Fatal(err)
+	}
+	if len(poll.Tasks) != 1 || poll.Tasks[0].Status != tasks.StatusRunning {
+		t.Fatalf("poll = %#v", poll)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/v1/agent/tasks/"+poll.Tasks[0].ID+"/result", bytes.NewReader([]byte(`{"exit_code":0,"stdout":"ok","duration_ms":5,"started_at":"2026-07-02T09:00:00Z"}`)))
+	w = httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("result status = %d body=%s", w.Code, w.Body.String())
+	}
+	var completed tasks.Task
+	if err := json.Unmarshal(w.Body.Bytes(), &completed); err != nil {
+		t.Fatal(err)
+	}
+	if completed.Status != tasks.StatusCompleted || completed.Result.Stdout != "ok" {
+		t.Fatalf("completed = %#v", completed)
 	}
 }

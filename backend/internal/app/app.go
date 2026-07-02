@@ -7,6 +7,7 @@ import (
 	"backend/internal/logging"
 	"backend/internal/security"
 	"backend/internal/store"
+	"backend/internal/tasks"
 
 	"go.uber.org/fx"
 )
@@ -17,6 +18,7 @@ func New() *fx.App {
 		logging.Module,
 		security.Module,
 		store.Module,
+		tasks.Module,
 		ingest.Module,
 		httpapi.Module,
 	)

@@ -94,9 +94,10 @@ type TaskConfig struct {
 }
 
 type RemoteConfig struct {
-	TasksEnabled bool   `yaml:"tasks_enabled"`
-	ShellEnabled bool   `yaml:"shell_enabled"`
-	AuditPath    string `yaml:"audit_path"`
+	TasksEnabled bool          `yaml:"tasks_enabled"`
+	ShellEnabled bool          `yaml:"shell_enabled"`
+	AuditPath    string        `yaml:"audit_path"`
+	PollEvery    time.Duration `yaml:"poll_every"`
 }
 
 type UpdateConfig struct {
@@ -136,6 +137,7 @@ func Default() Config {
 			TasksEnabled: true,
 			ShellEnabled: false,
 			AuditPath:    "./homelytics-audit.jsonl",
+			PollEvery:    15 * time.Second,
 		},
 		Power: PowerConfig{
 			PreventSleep: false,
@@ -187,6 +189,9 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Remote.AuditPath == "" {
 		c.Remote.AuditPath = "./homelytics-audit.jsonl"
+	}
+	if c.Remote.PollEvery <= 0 {
+		c.Remote.PollEvery = 15 * time.Second
 	}
 	if c.Network.PublicIPURL == "" {
 		c.Network.PublicIPURL = "https://api.ipify.org"

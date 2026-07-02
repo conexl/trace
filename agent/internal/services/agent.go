@@ -6,9 +6,11 @@ import (
 	"time"
 
 	"agent/internal/collectors"
+	"agent/internal/commands"
 	"agent/internal/config"
 	"agent/internal/logger"
 	"agent/internal/power"
+	"agent/internal/tasksclient"
 	"agent/internal/transport"
 )
 
@@ -21,6 +23,8 @@ type Agent struct {
 	hardware  *collectors.HardwareCollector
 	buffer    logger.BufferedSink
 	transport transport.Client
+	tasks     *tasksclient.Client
+	runner    *commands.Runner
 }
 
 func NewAgent(
@@ -32,8 +36,10 @@ func NewAgent(
 	hardware *collectors.HardwareCollector,
 	buffer logger.BufferedSink,
 	transport transport.Client,
+	tasks *tasksclient.Client,
+	runner *commands.Runner,
 ) *Agent {
-	return &Agent{cfg: cfg, system: system, network: network, processes: processes, logs: logs, hardware: hardware, buffer: buffer, transport: transport}
+	return &Agent{cfg: cfg, system: system, network: network, processes: processes, logs: logs, hardware: hardware, buffer: buffer, transport: transport, tasks: tasks, runner: runner}
 }
 
 func (a *Agent) Run(ctx context.Context) error {
@@ -58,6 +64,8 @@ func (a *Agent) Run(ctx context.Context) error {
 	defer collectTicker.Stop()
 	replayTicker := time.NewTicker(a.cfg.Cloud.ReplayEvery)
 	defer replayTicker.Stop()
+	taskTicker := time.NewTicker(a.cfg.Remote.PollEvery)
+	defer taskTicker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -69,6 +77,10 @@ func (a *Agent) Run(ctx context.Context) error {
 		case <-replayTicker.C:
 			if err := a.flushBuffered(ctx); err != nil {
 				slog.Warn("buffer replay failed", "error", err)
+			}
+		case <-taskTicker.C:
+			if err := a.pollAndRunTasks(ctx); err != nil {
+				slog.Warn("task polling failed", "error", err)
 			}
 		}
 	}
@@ -112,4 +124,21 @@ func (a *Agent) flushBuffered(ctx context.Context) error {
 		return err
 	}
 	return a.buffer.Ack(len(batch))
+}
+
+func (a *Agent) pollAndRunTasks(ctx context.Context) error {
+	if a.tasks == nil || a.runner == nil || !a.cfg.Remote.TasksEnabled || a.cfg.Cloud.Transport == "none" {
+		return nil
+	}
+	tasks, err := a.tasks.Poll(ctx, a.cfg.Agent.Name, 1)
+	if err != nil {
+		return err
+	}
+	for _, task := range tasks {
+		result, runErr := a.runner.Run(ctx, task.Name)
+		if err := a.tasks.Complete(ctx, task.ID, tasksclient.FromCommandResult(result, runErr)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
