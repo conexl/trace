@@ -35,6 +35,7 @@ func (c *NetworkCollector) Collect(ctx context.Context, cfg config.NetworkConfig
 		Ports:     c.checkPorts(ctx, cfg.PortChecks),
 		Traffic:   c.traffic(ctx),
 		Listening: collectListeningPorts(ctx),
+		Speed:     c.speedTests(ctx, cfg.SpeedTests),
 	}
 }
 
@@ -115,4 +116,42 @@ func contains(values []string, needle string) bool {
 		}
 	}
 	return false
+}
+
+func (c *NetworkCollector) speedTests(ctx context.Context, tests []config.SpeedTest) []SpeedResult {
+	results := make([]SpeedResult, 0, len(tests))
+	for _, test := range tests {
+		result := SpeedResult{Name: test.Name, URL: test.URL}
+		testCtx, cancel := context.WithTimeout(ctx, test.Timeout)
+		started := time.Now()
+		req, err := http.NewRequestWithContext(testCtx, http.MethodGet, test.URL, nil)
+		if err != nil {
+			result.Error = err.Error()
+			cancel()
+			results = append(results, result)
+			continue
+		}
+		resp, err := c.client.Do(req)
+		if err != nil {
+			result.Error = err.Error()
+			cancel()
+			results = append(results, result)
+			continue
+		}
+		read, err := io.Copy(io.Discard, io.LimitReader(resp.Body, test.MaxBytes))
+		_ = resp.Body.Close()
+		cancel()
+		result.Duration = time.Since(started)
+		result.BytesRead = read
+		if err != nil {
+			result.Error = err.Error()
+		} else if resp.StatusCode >= 300 {
+			result.Error = fmt.Sprintf("speed test returned %s", resp.Status)
+		}
+		if result.Duration > 0 {
+			result.Mbps = float64(read*8) / result.Duration.Seconds() / 1_000_000
+		}
+		results = append(results, result)
+	}
+	return results
 }

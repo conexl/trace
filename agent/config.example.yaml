@@ -18,6 +18,11 @@ network:
   dns_checks:
     - name: main-domain
       domain: example.com
+  speed_tests:
+    - name: cloudflare-small
+      url: https://speed.cloudflare.com/__down?bytes=1000000
+      max_bytes: 1000000
+      timeout: 8s
   port_checks:
     - name: local-ssh
       address: 127.0.0.1:22

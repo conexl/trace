@@ -50,3 +50,9 @@ func TestHTTPClientReturnsStatusError(t *testing.T) {
 		t.Fatal("SendSnapshots() expected status error")
 	}
 }
+
+func TestBuildTLSConfigRejectsPartialClientPair(t *testing.T) {
+	if _, err := buildTLSConfig(config.MTLS{CertFile: "cert.pem"}); err == nil {
+		t.Fatal("buildTLSConfig() expected partial pair error")
+	}
+}

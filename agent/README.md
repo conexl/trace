@@ -20,7 +20,7 @@ go run ./cmd/agent -config ./config.example.yaml -run-task disk-usage
 ## MVP Capabilities
 
 - System telemetry: host info, uptime, CPU, per-core CPU, memory, swap, disks, temperatures, SMART health, and power profile/governor when available.
-- Network audit: public IP, DNS A/AAAA records compared to public IP, TCP port checks, listening TCP ports, and Rx/Tx counters per interface.
+- Network audit: public IP, DNS A/AAAA records compared to public IP, TCP port checks, listening TCP ports, lightweight download speed tests, and Rx/Tx counters per interface.
 - Process/service monitoring: process matching by name/cmdline plus native `systemd` on Linux and `launchd` on macOS where available.
 - Watchdog events: critical missing processes create events and can execute a configured restart policy.
 - Log tailing: bounded reads from configured files, so large logs do not explode memory.
@@ -34,7 +34,7 @@ The current agent executes only named tasks from the YAML allowlist. It does not
 
 ## Agent Transport
 
-Set `cloud.transport: http` and `cloud.endpoint` to send buffered snapshots to `POST /v1/agent/snapshots`. The default `none` transport keeps everything local for demos. The transport seam is intentionally small so the HTTP client can be replaced with generated gRPC/mTLS without touching collectors.
+Set `cloud.transport: http` and `cloud.endpoint` to send buffered snapshots to `POST /v1/agent/snapshots`. The default `none` transport keeps everything local for demos. When `cloud.mtls.ca_file`, `cert_file`, and `key_file` are configured, the HTTP client uses those credentials for mutual TLS. The transport seam is intentionally small so the HTTP client can be replaced with generated gRPC without touching collectors.
 
 ## Next Milestone
 

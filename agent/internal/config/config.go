@@ -48,6 +48,7 @@ type NetworkConfig struct {
 	PublicIPURL string      `yaml:"public_ip_url"`
 	DNSChecks   []DNSCheck  `yaml:"dns_checks"`
 	PortChecks  []PortCheck `yaml:"port_checks"`
+	SpeedTests  []SpeedTest `yaml:"speed_tests"`
 }
 
 type DNSCheck struct {
@@ -59,6 +60,13 @@ type PortCheck struct {
 	Name    string        `yaml:"name"`
 	Address string        `yaml:"address"`
 	Timeout time.Duration `yaml:"timeout"`
+}
+
+type SpeedTest struct {
+	Name     string        `yaml:"name"`
+	URL      string        `yaml:"url"`
+	MaxBytes int64         `yaml:"max_bytes"`
+	Timeout  time.Duration `yaml:"timeout"`
 }
 
 type ProcessConfig struct {
@@ -188,6 +196,14 @@ func (c *Config) applyDefaults() {
 			c.Network.PortChecks[i].Timeout = 2 * time.Second
 		}
 	}
+	for i := range c.Network.SpeedTests {
+		if c.Network.SpeedTests[i].Timeout <= 0 {
+			c.Network.SpeedTests[i].Timeout = 8 * time.Second
+		}
+		if c.Network.SpeedTests[i].MaxBytes <= 0 {
+			c.Network.SpeedTests[i].MaxBytes = 5 * 1024 * 1024
+		}
+	}
 	for i := range c.Processes {
 		if c.Processes[i].GracePeriod <= 0 {
 			c.Processes[i].GracePeriod = 5 * time.Second
@@ -229,6 +245,11 @@ func (c Config) Validate() error {
 	for _, check := range c.Network.PortChecks {
 		if check.Name == "" || check.Address == "" {
 			return errors.New("port check needs name and address")
+		}
+	}
+	for _, test := range c.Network.SpeedTests {
+		if test.Name == "" || test.URL == "" {
+			return errors.New("speed test needs name and url")
 		}
 	}
 	for _, check := range c.Network.DNSChecks {

@@ -76,6 +76,7 @@ type NetworkSnapshot struct {
 	Ports     []PortResult     `json:"ports"`
 	Traffic   []TrafficCounter `json:"traffic"`
 	Listening []ListeningPort  `json:"listening_ports"`
+	Speed     []SpeedResult    `json:"speed_tests"`
 }
 
 type DNSResult struct {
@@ -106,6 +107,15 @@ type ListeningPort struct {
 	Port     uint16 `json:"port"`
 	PID      int    `json:"pid,omitempty"`
 	Process  string `json:"process,omitempty"`
+}
+
+type SpeedResult struct {
+	Name      string        `json:"name"`
+	URL       string        `json:"url"`
+	BytesRead int64         `json:"bytes_read"`
+	Duration  time.Duration `json:"duration"`
+	Mbps      float64       `json:"mbps"`
+	Error     string        `json:"error,omitempty"`
 }
 
 type ProcessSnapshot struct {
