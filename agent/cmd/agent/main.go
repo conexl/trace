@@ -14,6 +14,7 @@ import (
 	"agent/internal/commands"
 	"agent/internal/config"
 	"agent/internal/logger"
+	"agent/internal/pairing"
 	"agent/internal/services"
 	"agent/internal/transport"
 	"agent/internal/updater"
@@ -26,6 +27,11 @@ func main() {
 	runTask := flag.String("run-task", "", "run one configured task and exit")
 	selfUpdate := flag.Bool("self-update", false, "download and atomically replace the agent binary")
 	updateTarget := flag.String("update-target", "", "override self-update target path")
+	pairAgent := flag.Bool("pair", false, "claim backend pairing credentials and save mTLS PEM files")
+	pairDir := flag.String("pair-dir", "", "directory for pairing PEM files")
+	pairCAFile := flag.String("pair-ca-file", "", "override saved CA PEM path")
+	pairCertFile := flag.String("pair-cert-file", "", "override saved agent certificate PEM path")
+	pairKeyFile := flag.String("pair-key-file", "", "override saved agent private key PEM path")
 	flag.Parse()
 
 	cfg, err := config.Load(*configPath)
@@ -39,6 +45,31 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	if *pairAgent {
+		client, err := pairing.NewClient(cfg.Cloud)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "pairing client error: %v\n", err)
+			os.Exit(1)
+		}
+		hostname, _ := os.Hostname()
+		resp, err := client.Claim(ctx, pairing.Request{AgentName: cfg.Agent.Name, Hostname: hostname})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "pairing error: %v\n", err)
+			os.Exit(1)
+		}
+		saved, err := pairing.SaveCredentials(resp, pairing.SaveOptions{Dir: *pairDir, CAFile: firstNonEmpty(*pairCAFile, cfg.Cloud.MTLS.CAFile), CertFile: firstNonEmpty(*pairCertFile, cfg.Cloud.MTLS.CertFile), KeyFile: firstNonEmpty(*pairKeyFile, cfg.Cloud.MTLS.KeyFile)})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "save pairing credentials error: %v\n", err)
+			os.Exit(1)
+		}
+		writeJSON(map[string]any{
+			"agent_id":   resp.AgentID,
+			"expires_at": resp.ExpiresAt,
+			"mtls":       saved,
+		})
+		return
+	}
 
 	if *selfUpdate {
 		result, err := updater.New().Apply(ctx, cfg.Update.URL, cfg.Update.SHA256, *updateTarget)
@@ -112,4 +143,13 @@ func writeJSON(value any) {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	_ = encoder.Encode(value)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }

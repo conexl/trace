@@ -146,6 +146,10 @@ func (s *Server) requireIngest(next http.HandlerFunc) http.HandlerFunc {
 			next(w, r)
 			return
 		}
+		if s.cfg.TLS.RequireClientCert {
+			writeError(w, http.StatusUnauthorized, "verified client certificate required")
+			return
+		}
 		token := bearerToken(r.Header.Get("Authorization"))
 		if !s.cfg.Auth.AllowsIngest(token) {
 			writeError(w, http.StatusUnauthorized, "invalid ingest token")
@@ -204,12 +208,12 @@ func (s *Server) tlsConfig() *tls.Config {
 		return nil
 	}
 	cfg := &tls.Config{MinVersion: tls.VersionTLS12}
-	if s.cfg.TLS.RequireClientCert {
+	if s.cfg.TLS.ClientCAFile != "" {
 		pool := x509.NewCertPool()
 		caPEM, err := os.ReadFile(s.cfg.TLS.ClientCAFile)
 		if err == nil && pool.AppendCertsFromPEM(caPEM) {
 			cfg.ClientCAs = pool
-			cfg.ClientAuth = tls.RequireAndVerifyClientCert
+			cfg.ClientAuth = tls.VerifyClientCertIfGiven
 		}
 	}
 	return cfg

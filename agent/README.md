@@ -52,3 +52,13 @@ The updater downloads to a temporary file, verifies SHA256 when configured, chmo
 - Add pairing flow for one-time token enrollment.
 - Add PTY streaming for remote shell behind an explicit allowlist and audit log.
 - Add Telegram alert worker on the backend side.
+
+## Pairing
+
+Claim backend-issued mTLS credentials with a one-time pairing token:
+
+```bash
+go run ./cmd/agent -config ./config.example.yaml -pair -pair-dir ./certs
+```
+
+The command writes `ca.pem`, `agent.pem`, and `agent-key.pem` with `0600` permissions and prints the paths as JSON. Set `cloud.mtls.*` to those paths before running the daemon over HTTPS/mTLS.

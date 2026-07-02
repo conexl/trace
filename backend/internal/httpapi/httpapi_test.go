@@ -119,3 +119,16 @@ func TestIngestAllowsVerifiedClientCertificate(t *testing.T) {
 		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
 	}
 }
+
+func TestIngestRequiresClientCertificateWhenConfigured(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, TLS: config.TLSConfig{RequireClientCert: true}, Auth: config.AuthConfig{IngestTokens: map[string]struct{}{"agent-token": {}}}}
+	server := newTestServer(t, cfg)
+	payload := []byte(`{"snapshots":[{"agent_name":"mtls-agent","collected_at":"2026-07-02T09:00:00Z"}]}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/agent/snapshots", bytes.NewReader(payload))
+	req.Header.Set("Authorization", "Bearer agent-token")
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	}
+}

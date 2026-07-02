@@ -95,7 +95,7 @@ curl -X POST http://localhost:8080/v1/pairing/claim \
   -d '{"agent_name":"home-mini","hostname":"mac-mini"}'
 ```
 
-Enable backend TLS and require agent client certificates for ingest:
+Enable backend TLS and require agent client certificates for ingest. Pairing can still run before the client certificate exists; mTLS is enforced at the ingest route:
 
 ```bash
 HOMELYTICS_TLS_ENABLED=true \
@@ -106,4 +106,4 @@ HOMELYTICS_TLS_REQUIRE_CLIENT_CERT=true \
 go run ./cmd/backend
 ```
 
-When mTLS is enabled, `POST /v1/agent/snapshots` accepts verified client certificates. Bearer ingest tokens remain available for local development and migration.
+When `HOMELYTICS_TLS_REQUIRE_CLIENT_CERT=true`, `POST /v1/agent/snapshots` requires a verified client certificate. Bearer ingest tokens remain available when that flag is false for local development and migration.

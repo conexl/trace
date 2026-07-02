@@ -43,4 +43,4 @@ cloud:
 
 ## Pairing/mTLS статус
 
-Backend теперь умеет `/v1/pairing/claim`: one-time token -> client cert/key/CA PEM. Agent HTTP transport уже умеет читать `cloud.mtls.ca_file`, `cert_file`, `key_file`. Следующий agent-шаг: добавить CLI `-pair` для вызова pairing endpoint и сохранения PEM-файлов в локальный config directory.
+Backend теперь умеет `/v1/pairing/claim`: one-time token -> client cert/key/CA PEM. Agent HTTP transport уже умеет читать `cloud.mtls.ca_file`, `cert_file`, `key_file`. Agent теперь имеет CLI `-pair` для вызова pairing endpoint и сохранения PEM-файлов в локальный config directory.

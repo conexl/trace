@@ -5,7 +5,7 @@ agent:
 cloud:
   transport: none # none or http for the current agent-only demo transport
   endpoint: http://localhost:7443
-  token: paste-one-time-pairing-token-here
+  token: paste-one-time-pairing-token-here # used as pairing token before mTLS, optional after pairing
   replay_batch: 50
   replay_every: 15s
   mtls:
