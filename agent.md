@@ -1,0 +1,38 @@
+# Homelytics Agent кратко
+
+Go-агент для домашнего сервера. Собирает локальное состояние узла и буферизует snapshots для отправки в cloud.
+
+## Уже умеет
+
+- CPU, RAM, swap, disks, uptime, per-core load.
+- Temperatures, SMART health best-effort, power profile/governor.
+- Public IP, DNS checks, TCP port checks, listening TCP ports, Rx/Tx counters, speed checks.
+- Process/service watchdog через process match и systemd/launchd status.
+- Incremental log tailing с offset.
+- Offline JSONL buffer с replay/ack.
+- HTTP transport с optional mTLS.
+- Allowlisted remote tasks с audit log.
+- Policy-gated PTY primitive для будущего remote shell.
+- Self-update: download, SHA256 verify, atomic replace.
+
+## Запуск
+
+```bash
+cd agent
+go run ./cmd/agent -config ./config.example.yaml -once
+```
+
+Для backend demo:
+
+```yaml
+cloud:
+  transport: http
+  endpoint: http://localhost:8080
+```
+
+## Ограничения
+
+- Generated gRPC client еще не подключен.
+- Pairing flow и credential persistence еще не реализованы.
+- PTY shell есть как primitive, но запрещен config validation до mTLS/cloud authorization.
+- Exit code history для уже упавших процессов пока не хранится.
