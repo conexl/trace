@@ -36,3 +36,7 @@ cloud:
 - Pairing flow и credential persistence еще не реализованы.
 - PTY shell есть как primitive, но запрещен config validation до mTLS/cloud authorization.
 - Exit code history для уже упавших процессов пока не хранится.
+
+## Backend demo
+
+Запусти `backend` с `HOMELYTICS_INGEST_TOKENS`, затем поставь тот же token в `agent/config.example.yaml` в `cloud.token` и `cloud.endpoint: http://localhost:8080`.
