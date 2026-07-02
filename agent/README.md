@@ -18,8 +18,12 @@ The agent writes JSONL snapshots to `homelytics-buffer.jsonl` and mirrors them t
 - Watchdog events: critical missing processes create events and can execute a configured restart policy.
 - Log tailing: bounded reads from configured files, so large logs do not explode memory.
 - Power guard: optional sleep inhibition via `systemd-inhibit` on Linux or `caffeinate` on macOS.
-- Offline buffer: snapshots are appended to JSONL for replay once the cloud transport is connected.
+- Offline buffer: snapshots are appended to JSONL, replayed in batches, and acked only after successful upload.
 - Remote tasks: safe command runner for preconfigured tasks only.
+
+## Agent Transport
+
+Set `cloud.transport: http` and `cloud.endpoint` to send buffered snapshots to `POST /v1/agent/snapshots`. The default `none` transport keeps everything local for demos. The transport seam is intentionally small so the HTTP client can be replaced with generated gRPC/mTLS without touching collectors.
 
 ## Next Milestone
 

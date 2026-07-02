@@ -13,6 +13,7 @@ import (
 	"agent/internal/config"
 	"agent/internal/logger"
 	"agent/internal/services"
+	"agent/internal/transport"
 )
 
 func main() {
@@ -32,12 +33,18 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	sink, err := logger.NewJSONLBuffer(cfg.Buffer)
+	buffer, err := logger.NewJSONLBuffer(cfg.Buffer)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "buffer error: %v\n", err)
 		os.Exit(1)
 	}
-	defer sink.Close()
+	defer buffer.Close()
+
+	transportClient, err := buildTransport(cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "transport error: %v\n", err)
+		os.Exit(1)
+	}
 
 	serviceManager := collectors.NewServiceManager()
 	agent := services.NewAgent(
@@ -46,12 +53,24 @@ func main() {
 		collectors.NewNetworkCollector(),
 		collectors.NewProcessCollector(serviceManager),
 		collectors.NewLogCollector(),
-		sink,
+		buffer,
+		transportClient,
 	)
 
 	slog.Info("homelytics agent started", "name", cfg.Agent.Name, "interval", cfg.Agent.Interval)
 	if err := agent.Run(ctx); err != nil && ctx.Err() == nil {
 		fmt.Fprintf(os.Stderr, "agent error: %v\n", err)
 		os.Exit(1)
+	}
+}
+
+func buildTransport(cfg config.Config) (transport.Client, error) {
+	switch cfg.Cloud.Transport {
+	case "", "none":
+		return transport.NopClient{}, nil
+	case "http":
+		return transport.NewHTTPClient(cfg.Cloud)
+	default:
+		return nil, fmt.Errorf("unsupported cloud transport %q", cfg.Cloud.Transport)
 	}
 }

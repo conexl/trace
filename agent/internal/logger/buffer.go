@@ -17,6 +17,12 @@ type Sink interface {
 	Close() error
 }
 
+type BufferedSink interface {
+	Sink
+	ReadBatch(limit int) ([]collectors.Snapshot, error)
+	Ack(count int) error
+}
+
 type JSONLBuffer struct {
 	mu        sync.Mutex
 	file      *os.File
@@ -67,6 +73,54 @@ func (b *JSONLBuffer) PublishSnapshot(ctx context.Context, snapshot collectors.S
 	return nil
 }
 
+func (b *JSONLBuffer) ReadBatch(limit int) ([]collectors.Snapshot, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if err := b.file.Sync(); err != nil {
+		return nil, err
+	}
+	lines, err := readJSONLLines(b.path)
+	if err != nil {
+		return nil, err
+	}
+	if len(lines) > limit {
+		lines = lines[:limit]
+	}
+	batch := make([]collectors.Snapshot, 0, len(lines))
+	for _, line := range lines {
+		var snapshot collectors.Snapshot
+		if err := json.Unmarshal(line, &snapshot); err != nil {
+			return nil, fmt.Errorf("decode buffered snapshot: %w", err)
+		}
+		batch = append(batch, snapshot)
+	}
+	return batch, nil
+}
+
+func (b *JSONLBuffer) Ack(count int) error {
+	if count <= 0 {
+		return nil
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if err := b.file.Sync(); err != nil {
+		return err
+	}
+	lines, err := readJSONLLines(b.path)
+	if err != nil {
+		return err
+	}
+	if count >= len(lines) {
+		lines = nil
+	} else {
+		lines = lines[count:]
+	}
+	return b.rewriteLocked(lines)
+}
+
 func (b *JSONLBuffer) Close() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -77,44 +131,57 @@ func (b *JSONLBuffer) compactLocked() error {
 	if err := b.file.Sync(); err != nil {
 		return err
 	}
-	data, err := os.ReadFile(b.path)
+	lines, err := readJSONLLines(b.path)
 	if err != nil {
 		return err
 	}
-	data = bytes.TrimRight(data, "\n")
-	if len(data) == 0 {
-		b.events = 0
-		return nil
-	}
-	lines := bytes.Split(data, []byte("\n"))
 	if len(lines) > b.maxEvents {
 		lines = lines[len(lines)-b.maxEvents:]
 	}
-	rotated := append(bytes.Join(lines, []byte("\n")), '\n')
+	return b.rewriteLocked(lines)
+}
+
+func (b *JSONLBuffer) rewriteLocked(lines [][]byte) error {
 	if err := b.file.Truncate(0); err != nil {
 		return err
 	}
 	if _, err := b.file.Seek(0, 0); err != nil {
 		return err
 	}
-	if _, err := b.file.Write(rotated); err != nil {
-		return err
+	if len(lines) > 0 {
+		payload := append(bytes.Join(lines, []byte("\n")), '\n')
+		if _, err := b.file.Write(payload); err != nil {
+			return err
+		}
 	}
 	b.events = len(lines)
 	return nil
 }
 
 func countJSONLLines(path string) (int, error) {
+	lines, err := readJSONLLines(path)
+	if err != nil {
+		return 0, err
+	}
+	return len(lines), nil
+}
+
+func readJSONLLines(path string) ([][]byte, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return 0, nil
+			return nil, nil
 		}
-		return 0, err
+		return nil, err
 	}
 	data = bytes.TrimRight(data, "\n")
 	if len(data) == 0 {
-		return 0, nil
+		return nil, nil
 	}
-	return len(bytes.Split(data, []byte("\n"))), nil
+	raw := bytes.Split(data, []byte("\n"))
+	lines := make([][]byte, 0, len(raw))
+	for _, line := range raw {
+		lines = append(lines, bytes.Clone(line))
+	}
+	return lines, nil
 }

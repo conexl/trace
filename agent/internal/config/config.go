@@ -28,9 +28,12 @@ type AgentConfig struct {
 }
 
 type CloudConfig struct {
-	Endpoint string `yaml:"endpoint"`
-	Token    string `yaml:"token"`
-	MTLS     MTLS   `yaml:"mtls"`
+	Endpoint    string        `yaml:"endpoint"`
+	Token       string        `yaml:"token"`
+	Transport   string        `yaml:"transport"`
+	ReplayBatch int           `yaml:"replay_batch"`
+	ReplayEvery time.Duration `yaml:"replay_every"`
+	MTLS        MTLS          `yaml:"mtls"`
 }
 
 type MTLS struct {
@@ -95,6 +98,11 @@ func Default() Config {
 			Name:     "homelytics-agent",
 			Interval: 10 * time.Second,
 		},
+		Cloud: CloudConfig{
+			Transport:   "none",
+			ReplayBatch: 50,
+			ReplayEvery: 15 * time.Second,
+		},
 		Network: NetworkConfig{
 			PublicIPURL: "https://api.ipify.org",
 		},
@@ -137,6 +145,15 @@ func (c *Config) applyDefaults() {
 	if c.Agent.Interval <= 0 {
 		c.Agent.Interval = 10 * time.Second
 	}
+	if c.Cloud.Transport == "" {
+		c.Cloud.Transport = "none"
+	}
+	if c.Cloud.ReplayBatch <= 0 {
+		c.Cloud.ReplayBatch = 50
+	}
+	if c.Cloud.ReplayEvery <= 0 {
+		c.Cloud.ReplayEvery = 15 * time.Second
+	}
 	if c.Network.PublicIPURL == "" {
 		c.Network.PublicIPURL = "https://api.ipify.org"
 	}
@@ -169,6 +186,12 @@ func (c *Config) applyDefaults() {
 }
 
 func (c Config) Validate() error {
+	if c.Cloud.Transport != "none" && c.Cloud.Transport != "http" {
+		return fmt.Errorf("cloud transport %q is not supported", c.Cloud.Transport)
+	}
+	if c.Cloud.Transport == "http" && c.Cloud.Endpoint == "" {
+		return errors.New("cloud endpoint is required for http transport")
+	}
 	for _, proc := range c.Processes {
 		if proc.Name == "" {
 			return errors.New("process entry is missing name")
