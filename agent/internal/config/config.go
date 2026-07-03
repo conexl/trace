@@ -79,6 +79,7 @@ type ProcessConfig struct {
 	Service         string        `yaml:"service"`
 	Critical        bool          `yaml:"critical"`
 	Restart         bool          `yaml:"restart"`
+	RemoteControl   bool          `yaml:"remote_control"`
 	RestartCommand  []string      `yaml:"restart_command"`
 	GracePeriod     time.Duration `yaml:"grace_period"`
 	MaxRestarts     int           `yaml:"max_restarts"`

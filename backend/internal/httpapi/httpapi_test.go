@@ -214,6 +214,53 @@ func TestTaskQueueHTTPLifecycle(t *testing.T) {
 	}
 }
 
+func TestServiceActionQueuesRemoteControllableService(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Auth: config.AuthConfig{AdminToken: "admin-token"}}
+	server := newTestServer(t, cfg)
+	payload := []byte(`{"snapshots":[{"agent_name":"devbox","processes":[{"name":"nginx","service":"nginx","remote_control":true,"running":true}],"collected_at":"2026-07-02T09:00:00Z"}]}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/agent/snapshots", bytes.NewReader(payload))
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("ingest status = %d body=%s", w.Code, w.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/v1/servers/devbox/service-actions", bytes.NewReader([]byte(`{"service":"nginx","action":"restart"}`)))
+	req.Header.Set("Authorization", "Bearer admin-token")
+	w = httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("action status = %d body=%s", w.Code, w.Body.String())
+	}
+	var task tasks.Task
+	if err := json.Unmarshal(w.Body.Bytes(), &task); err != nil {
+		t.Fatal(err)
+	}
+	if task.Name != "service-action" || task.Payload.Service != "nginx" || task.Payload.Action != "restart" {
+		t.Fatalf("task = %#v", task)
+	}
+}
+
+func TestServiceActionRejectsNonRemoteControllableService(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Auth: config.AuthConfig{AdminToken: "admin-token"}}
+	server := newTestServer(t, cfg)
+	payload := []byte(`{"snapshots":[{"agent_name":"devbox","processes":[{"name":"nginx","service":"nginx","running":true}],"collected_at":"2026-07-02T09:00:00Z"}]}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/agent/snapshots", bytes.NewReader(payload))
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("ingest status = %d body=%s", w.Code, w.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/v1/servers/devbox/service-actions", bytes.NewReader([]byte(`{"service":"nginx","action":"restart"}`)))
+	req.Header.Set("Authorization", "Bearer admin-token")
+	w = httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("action status = %d body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestTaskPollingUpdatesPresence(t *testing.T) {
 	now := time.Now().UTC()
 	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Auth: config.AuthConfig{AdminToken: "admin-token"}}

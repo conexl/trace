@@ -127,7 +127,15 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleServerAction(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/v1/servers/")
 	parts := strings.Split(strings.Trim(path, "/"), "/")
-	if len(parts) != 2 || parts[0] == "" || parts[1] != "tasks" {
+	if len(parts) != 2 || parts[0] == "" {
+		writeError(w, http.StatusNotFound, "server action not found")
+		return
+	}
+	if parts[1] == "service-actions" {
+		s.handleServiceAction(w, r, parts[0])
+		return
+	}
+	if parts[1] != "tasks" {
 		writeError(w, http.StatusNotFound, "server action not found")
 		return
 	}
@@ -149,6 +157,55 @@ func (s *Server) handleServerAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusAccepted, task)
+}
+
+func (s *Server) handleServiceAction(w http.ResponseWriter, r *http.Request, serverID string) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req struct {
+		Service string `json:"service"`
+		Action  string `json:"action"`
+	}
+	defer r.Body.Close()
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid service action request")
+		return
+	}
+	req.Service = strings.TrimSpace(req.Service)
+	req.Action = strings.TrimSpace(req.Action)
+	if req.Service == "" {
+		writeError(w, http.StatusBadRequest, "service is required")
+		return
+	}
+	if req.Action != "start" && req.Action != "stop" && req.Action != "restart" {
+		writeError(w, http.StatusBadRequest, "action must be start, stop, or restart")
+		return
+	}
+	if !s.serviceAllowsRemoteControl(r.Context(), serverID, req.Service) {
+		writeError(w, http.StatusForbidden, "service is not remote-controllable")
+		return
+	}
+	task, err := s.tasks.EnqueueWithPayload(r.Context(), serverID, "service-action", tasks.TaskPayload{Service: req.Service, Action: req.Action})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "enqueue service action failed")
+		return
+	}
+	writeJSON(w, http.StatusAccepted, task)
+}
+
+func (s *Server) serviceAllowsRemoteControl(ctx context.Context, serverID string, service string) bool {
+	state, err := s.store.GetServer(ctx, serverID, time.Now())
+	if err != nil {
+		return false
+	}
+	for _, process := range state.Snapshot.Processes {
+		if process.Service == service && process.RemoteControl {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) handlePollTasks(w http.ResponseWriter, r *http.Request) {

@@ -65,16 +65,17 @@ type NetworkSnapshot struct {
 }
 
 type Process struct {
-	Name         string  `json:"name"`
-	Match        string  `json:"match"`
-	Service      string  `json:"service"`
-	Running      bool    `json:"running"`
-	PID          int32   `json:"pid,omitempty"`
-	Status       string  `json:"status,omitempty"`
-	LastExitCode int     `json:"last_exit_code,omitempty"`
-	CPUPercent   float64 `json:"cpu_percent,omitempty"`
-	MemoryRSS    uint64  `json:"memory_rss,omitempty"`
-	Error        string  `json:"error,omitempty"`
+	Name          string  `json:"name"`
+	Match         string  `json:"match"`
+	Service       string  `json:"service"`
+	RemoteControl bool    `json:"remote_control,omitempty"`
+	Running       bool    `json:"running"`
+	PID           int32   `json:"pid,omitempty"`
+	Status        string  `json:"status,omitempty"`
+	LastExitCode  int     `json:"last_exit_code,omitempty"`
+	CPUPercent    float64 `json:"cpu_percent,omitempty"`
+	MemoryRSS     uint64  `json:"memory_rss,omitempty"`
+	Error         string  `json:"error,omitempty"`
 }
 
 type LogChunk struct {

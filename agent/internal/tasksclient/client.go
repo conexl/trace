@@ -24,10 +24,16 @@ type Client struct {
 }
 
 type Task struct {
-	ID       string `json:"id"`
-	ServerID string `json:"server_id"`
-	Name     string `json:"name"`
-	Status   string `json:"status"`
+	ID       string      `json:"id"`
+	ServerID string      `json:"server_id"`
+	Name     string      `json:"name"`
+	Payload  TaskPayload `json:"payload,omitempty"`
+	Status   string      `json:"status"`
+}
+
+type TaskPayload struct {
+	Service string `json:"service,omitempty"`
+	Action  string `json:"action,omitempty"`
 }
 
 type TaskResult struct {

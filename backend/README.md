@@ -100,6 +100,7 @@ If Redis is not configured, the backend uses an in-memory fallback and still der
 - `GET /v1/servers`
 - `GET /v1/servers/{id}`
 - `POST /v1/servers/{server_id}/tasks`
+- `POST /v1/servers/{server_id}/service-actions`
 - `GET /v1/tasks/{task_id}`
 
 ## Pairing and mTLS
@@ -148,6 +149,15 @@ curl -X POST http://localhost:8080/v1/servers/homelytics-devbox/tasks \
 ```
 
 Agents poll `GET /v1/agent/tasks?agent_id=<agent-name>` and report results to `POST /v1/agent/tasks/{task_id}/result`. The agent still executes only locally allowlisted YAML tasks.
+
+Queue a typed service action for a service that the latest agent snapshot marked as `remote_control: true`:
+
+```bash
+curl -X POST http://localhost:8080/v1/servers/homelytics-devbox/service-actions \
+  -H 'Authorization: Bearer dev-admin-token' \
+  -H 'Content-Type: application/json' \
+  -d '{"service":"nginx","action":"restart"}'
+```
 
 ## Alerts
 

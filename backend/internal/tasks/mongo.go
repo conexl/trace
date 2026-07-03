@@ -50,11 +50,15 @@ func NewStore(lc fx.Lifecycle, cfg config.Config) (Store, error) {
 }
 
 func (s *MongoStore) Enqueue(ctx context.Context, serverID string, taskName string) (Task, error) {
+	return s.EnqueueWithPayload(ctx, serverID, taskName, TaskPayload{})
+}
+
+func (s *MongoStore) EnqueueWithPayload(ctx context.Context, serverID string, taskName string, payload TaskPayload) (Task, error) {
 	id, err := newTaskID()
 	if err != nil {
 		return Task{}, err
 	}
-	task := Task{ID: id, ServerID: serverID, Name: taskName, Status: StatusPending, CreatedAt: time.Now().UTC()}
+	task := Task{ID: id, ServerID: serverID, Name: taskName, Payload: payload, Status: StatusPending, CreatedAt: time.Now().UTC()}
 	_, err = s.tasks.InsertOne(ctx, task)
 	return task, err
 }

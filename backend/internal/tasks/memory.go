@@ -17,6 +17,10 @@ func NewMemoryStore() *MemoryStore {
 }
 
 func (s *MemoryStore) Enqueue(ctx context.Context, serverID string, taskName string) (Task, error) {
+	return s.EnqueueWithPayload(ctx, serverID, taskName, TaskPayload{})
+}
+
+func (s *MemoryStore) EnqueueWithPayload(ctx context.Context, serverID string, taskName string, payload TaskPayload) (Task, error) {
 	select {
 	case <-ctx.Done():
 		return Task{}, ctx.Err()
@@ -26,7 +30,7 @@ func (s *MemoryStore) Enqueue(ctx context.Context, serverID string, taskName str
 	if err != nil {
 		return Task{}, err
 	}
-	task := Task{ID: id, ServerID: serverID, Name: taskName, Status: StatusPending, CreatedAt: time.Now().UTC()}
+	task := Task{ID: id, ServerID: serverID, Name: taskName, Payload: payload, Status: StatusPending, CreatedAt: time.Now().UTC()}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.tasks[id] = task

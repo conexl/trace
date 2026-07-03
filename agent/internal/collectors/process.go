@@ -36,7 +36,7 @@ func (c *ProcessCollector) Collect(ctx context.Context, configs []config.Process
 	events := make([]Event, 0)
 
 	for _, cfg := range configs {
-		result := ProcessSnapshot{Name: cfg.Name, Match: cfg.Match, Service: cfg.Service}
+		result := ProcessSnapshot{Name: cfg.Name, Match: cfg.Match, Service: cfg.Service, RemoteControl: cfg.RemoteControl}
 		if cfg.Service != "" {
 			status, err := c.services.Status(ctx, cfg.Service)
 			result.Status = status.Status

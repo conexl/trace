@@ -37,6 +37,7 @@ processes:
     service: ssh
     critical: true
     restart: false
+    remote_control: false
     max_restarts: 3
     restart_window: 5m
     restart_cooldown: 1m
@@ -45,6 +46,7 @@ processes:
     service: nginx
     critical: false
     restart: false
+    remote_control: true
     max_restarts: 3
     restart_window: 5m
     restart_cooldown: 1m

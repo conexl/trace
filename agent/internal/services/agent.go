@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -15,16 +16,17 @@ import (
 )
 
 type Agent struct {
-	cfg       config.Config
-	system    *collectors.SystemCollector
-	network   *collectors.NetworkCollector
-	processes *collectors.ProcessCollector
-	logs      *collectors.LogCollector
-	hardware  *collectors.HardwareCollector
-	buffer    logger.BufferedSink
-	transport transport.Client
-	tasks     *tasksclient.Client
-	runner    *commands.Runner
+	cfg            config.Config
+	system         *collectors.SystemCollector
+	network        *collectors.NetworkCollector
+	processes      *collectors.ProcessCollector
+	logs           *collectors.LogCollector
+	hardware       *collectors.HardwareCollector
+	serviceManager collectors.ServiceManager
+	buffer         logger.BufferedSink
+	transport      transport.Client
+	tasks          *tasksclient.Client
+	runner         *commands.Runner
 }
 
 func NewAgent(
@@ -34,12 +36,13 @@ func NewAgent(
 	processes *collectors.ProcessCollector,
 	logs *collectors.LogCollector,
 	hardware *collectors.HardwareCollector,
+	serviceManager collectors.ServiceManager,
 	buffer logger.BufferedSink,
 	transport transport.Client,
 	tasks *tasksclient.Client,
 	runner *commands.Runner,
 ) *Agent {
-	return &Agent{cfg: cfg, system: system, network: network, processes: processes, logs: logs, hardware: hardware, buffer: buffer, transport: transport, tasks: tasks, runner: runner}
+	return &Agent{cfg: cfg, system: system, network: network, processes: processes, logs: logs, hardware: hardware, serviceManager: serviceManager, buffer: buffer, transport: transport, tasks: tasks, runner: runner}
 }
 
 func (a *Agent) Run(ctx context.Context) error {
@@ -135,10 +138,68 @@ func (a *Agent) pollAndRunTasks(ctx context.Context) error {
 		return err
 	}
 	for _, task := range tasks {
-		result, runErr := a.runner.Run(ctx, task.Name)
-		if err := a.tasks.Complete(ctx, task.ID, tasksclient.FromCommandResult(result, runErr)); err != nil {
+		result, runErr := a.runTask(ctx, task)
+		if err := a.tasks.Complete(ctx, task.ID, resultWithError(result, runErr)); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (a *Agent) runTask(ctx context.Context, task tasksclient.Task) (tasksclient.TaskResult, error) {
+	if task.Name == "service-action" {
+		return a.runServiceAction(ctx, task.Payload)
+	}
+	result, runErr := a.runner.Run(ctx, task.Name)
+	return tasksclient.FromCommandResult(result, runErr), runErr
+}
+
+func (a *Agent) runServiceAction(ctx context.Context, payload tasksclient.TaskPayload) (tasksclient.TaskResult, error) {
+	started := time.Now()
+	err := a.validateServiceAction(payload)
+	if err == nil {
+		switch payload.Action {
+		case "start":
+			err = a.serviceManager.Start(ctx, payload.Service)
+		case "stop":
+			err = a.serviceManager.Stop(ctx, payload.Service)
+		case "restart":
+			err = a.serviceManager.Restart(ctx, payload.Service)
+		default:
+			err = fmt.Errorf("unsupported service action %q", payload.Action)
+		}
+	}
+	result := tasksclient.TaskResult{
+		ExitCode:   0,
+		Stdout:     fmt.Sprintf("%s %s", payload.Action, payload.Service),
+		DurationMS: time.Since(started).Milliseconds(),
+		StartedAt:  started,
+	}
+	if err != nil {
+		result.ExitCode = 1
+		result.Error = err.Error()
+	}
+	return result, err
+}
+
+func (a *Agent) validateServiceAction(payload tasksclient.TaskPayload) error {
+	if payload.Service == "" {
+		return fmt.Errorf("service is required")
+	}
+	if payload.Action != "start" && payload.Action != "stop" && payload.Action != "restart" {
+		return fmt.Errorf("unsupported service action %q", payload.Action)
+	}
+	for _, proc := range a.cfg.Processes {
+		if proc.Service == payload.Service && proc.RemoteControl {
+			return nil
+		}
+	}
+	return fmt.Errorf("service %q is not remote-controllable", payload.Service)
+}
+
+func resultWithError(result tasksclient.TaskResult, err error) tasksclient.TaskResult {
+	if err != nil && result.Error == "" {
+		result.Error = err.Error()
+	}
+	return result
 }

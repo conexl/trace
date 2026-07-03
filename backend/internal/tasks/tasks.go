@@ -21,11 +21,17 @@ type Task struct {
 	ID          string      `json:"id" bson:"_id"`
 	ServerID    string      `json:"server_id" bson:"server_id"`
 	Name        string      `json:"name" bson:"name"`
+	Payload     TaskPayload `json:"payload,omitempty" bson:"payload,omitempty"`
 	Status      Status      `json:"status" bson:"status"`
 	CreatedAt   time.Time   `json:"created_at" bson:"created_at"`
 	ClaimedAt   *time.Time  `json:"claimed_at,omitempty" bson:"claimed_at,omitempty"`
 	CompletedAt *time.Time  `json:"completed_at,omitempty" bson:"completed_at,omitempty"`
 	Result      *TaskResult `json:"result,omitempty" bson:"result,omitempty"`
+}
+
+type TaskPayload struct {
+	Service string `json:"service,omitempty" bson:"service,omitempty"`
+	Action  string `json:"action,omitempty" bson:"action,omitempty"`
 }
 
 type TaskResult struct {
@@ -39,6 +45,7 @@ type TaskResult struct {
 
 type Store interface {
 	Enqueue(ctx context.Context, serverID string, taskName string) (Task, error)
+	EnqueueWithPayload(ctx context.Context, serverID string, taskName string, payload TaskPayload) (Task, error)
 	ClaimPending(ctx context.Context, serverID string, limit int) ([]Task, error)
 	Complete(ctx context.Context, taskID string, result TaskResult) (Task, error)
 	Get(ctx context.Context, taskID string) (Task, error)

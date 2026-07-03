@@ -128,6 +128,7 @@ func main() {
 		collectors.NewProcessCollector(serviceManager),
 		collectors.NewLogCollector(),
 		collectors.NewHardwareCollector(),
+		serviceManager,
 		buffer,
 		transportClient,
 		taskClient,
