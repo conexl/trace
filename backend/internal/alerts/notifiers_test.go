@@ -4,28 +4,51 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"backend/internal/config"
 )
 
-func TestMemoryNotifierKeepsRecentAlerts(t *testing.T) {
-	notifier := NewMemoryNotifier(config.Config{Alerts: config.AlertsConfig{MemoryLimit: 2}})
-	_ = notifier.Notify(context.Background(), Alert{ID: "one"})
-	_ = notifier.Notify(context.Background(), Alert{ID: "two"})
-	_ = notifier.Notify(context.Background(), Alert{ID: "three"})
-	recent := notifier.Recent(10)
-	if len(recent) != 2 || recent[0].ID != "two" || recent[1].ID != "three" {
+func TestMemoryStoreKeepsRecentAlerts(t *testing.T) {
+	store := NewMemoryStore(config.Config{Alerts: config.AlertsConfig{MemoryLimit: 2}})
+	_ = store.Save(context.Background(), Alert{ID: "one", CreatedAt: time.Now().Add(-3 * time.Second)})
+	_ = store.Save(context.Background(), Alert{ID: "two", CreatedAt: time.Now().Add(-2 * time.Second)})
+	_ = store.Save(context.Background(), Alert{ID: "three", CreatedAt: time.Now().Add(-time.Second)})
+	recent, err := store.Recent(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("Recent() error = %v", err)
+	}
+	if len(recent) != 2 || recent[0].ID != "three" || recent[1].ID != "two" {
+		t.Fatalf("recent = %#v", recent)
+	}
+}
+
+func TestStoreNotifierPersistsAlerts(t *testing.T) {
+	store := NewMemoryStore(config.Config{Alerts: config.AlertsConfig{MemoryLimit: 10}})
+	notifier := NewStoreNotifier(store)
+	if err := notifier.Notify(context.Background(), Alert{ID: "one", Type: "process.down", CreatedAt: time.Now()}); err != nil {
+		t.Fatalf("Notify() error = %v", err)
+	}
+	recent, err := store.Recent(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("Recent() error = %v", err)
+	}
+	if len(recent) != 1 || recent[0].ID != "one" {
 		t.Fatalf("recent = %#v", recent)
 	}
 }
 
 func TestDispatcherTreatsNotifierFailuresAsBestEffort(t *testing.T) {
-	memory := NewMemoryNotifier(config.Config{Alerts: config.AlertsConfig{MemoryLimit: 10}})
-	dispatcher := NewDispatcher(DispatcherParams{Notifiers: []Notifier{failingNotifier{}, memory}})
-	if err := dispatcher.Dispatch(context.Background(), []Alert{{ID: "one", Type: "process.down"}}); err != nil {
+	store := NewMemoryStore(config.Config{Alerts: config.AlertsConfig{MemoryLimit: 10}})
+	dispatcher := NewDispatcher(DispatcherParams{Notifiers: []Notifier{failingNotifier{}, NewStoreNotifier(store)}})
+	if err := dispatcher.Dispatch(context.Background(), []Alert{{ID: "one", Type: "process.down", CreatedAt: time.Now()}}); err != nil {
 		t.Fatalf("Dispatch() error = %v", err)
 	}
-	if recent := memory.Recent(10); len(recent) != 1 || recent[0].ID != "one" {
+	recent, err := store.Recent(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("Recent() error = %v", err)
+	}
+	if len(recent) != 1 || recent[0].ID != "one" {
 		t.Fatalf("recent = %#v", recent)
 	}
 }

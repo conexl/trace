@@ -8,7 +8,7 @@ Production-shaped backend for the Homelytics hackathon product. It uses Fx for d
 - `store`: deep storage seam. Mongo adapter in production, memory adapter for tests/dev fallback.
 - `presence`: Redis-backed agent presence with memory fallback.
 - `ingest`: accepts agent snapshot batches and converts them into current server state.
-- `alerts`: evaluates snapshot-derived incidents and sends best-effort notifications.
+- `alerts`: evaluates snapshot-derived incidents, persists them in MongoDB when configured, and sends best-effort notifications.
 - `httpapi`: HTTP routes, auth middleware, request limits, security headers, and graceful server lifecycle.
 - `app`: Fx composition root.
 
@@ -56,7 +56,7 @@ HOMELYTICS_ADMIN_TOKEN=dev-admin-token \
 go run ./cmd/backend
 ```
 
-The backend stores the current server state in the `servers` collection with a unique index on `summary.id`.
+The backend stores the current server state in the `servers` collection with a unique index on `summary.id`. Alerts are stored in the `alerts` collection and sorted by `created_at`.
 
 ## Redis Presence
 
@@ -158,7 +158,7 @@ Snapshot ingest evaluates alerts for:
 - failed DNS checks
 - unreachable configured ports
 
-Recent alerts are available through:
+Recent alerts are persisted in MongoDB when `HOMELYTICS_MONGO_URI` is configured, otherwise they use an in-memory fallback. They are available through:
 
 ```bash
 curl -H 'Authorization: Bearer dev-admin-token' http://localhost:8080/v1/alerts

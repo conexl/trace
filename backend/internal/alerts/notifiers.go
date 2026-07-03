@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
@@ -14,44 +15,65 @@ import (
 	"go.uber.org/fx"
 )
 
-type MemoryNotifier struct {
+type Store interface {
+	Save(ctx context.Context, alert Alert) error
+	Recent(ctx context.Context, limit int) ([]Alert, error)
+}
+
+type MemoryStore struct {
 	mu     sync.RWMutex
 	limit  int
 	alerts []Alert
 }
 
-func NewMemoryNotifier(cfg config.Config) *MemoryNotifier {
+func NewMemoryStore(cfg config.Config) *MemoryStore {
 	limit := cfg.Alerts.MemoryLimit
 	if limit <= 0 {
 		limit = 200
 	}
-	return &MemoryNotifier{limit: limit}
+	return &MemoryStore{limit: limit}
 }
 
-func (n *MemoryNotifier) Notify(ctx context.Context, alert Alert) error {
+func (s *MemoryStore) Save(ctx context.Context, alert Alert) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	n.alerts = append(n.alerts, alert)
-	if len(n.alerts) > n.limit {
-		n.alerts = n.alerts[len(n.alerts)-n.limit:]
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.alerts = append(s.alerts, alert)
+	if len(s.alerts) > s.limit {
+		s.alerts = s.alerts[len(s.alerts)-s.limit:]
 	}
 	return nil
 }
 
-func (n *MemoryNotifier) Recent(limit int) []Alert {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-	if limit <= 0 || limit > len(n.alerts) {
-		limit = len(n.alerts)
+func (s *MemoryStore) Recent(ctx context.Context, limit int) ([]Alert, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if limit <= 0 || limit > len(s.alerts) {
+		limit = len(s.alerts)
 	}
 	out := make([]Alert, limit)
-	copy(out, n.alerts[len(n.alerts)-limit:])
-	return out
+	copy(out, s.alerts[len(s.alerts)-limit:])
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	return out, nil
+}
+
+type StoreNotifier struct {
+	store Store
+}
+
+func NewStoreNotifier(store Store) Notifier { return StoreNotifier{store: store} }
+
+func (n StoreNotifier) Notify(ctx context.Context, alert Alert) error {
+	return n.store.Save(ctx, alert)
 }
 
 type TelegramNotifier struct {
@@ -104,10 +126,8 @@ type noopNotifier struct{}
 
 func (noopNotifier) Notify(context.Context, Alert) error { return nil }
 
-func MemoryAsNotifier(memory *MemoryNotifier) Notifier { return memory }
-
 var NotifierProviders = fx.Options(
-	fx.Provide(NewMemoryNotifier),
-	fx.Provide(fx.Annotate(MemoryAsNotifier, fx.ResultTags(`group:"alert_notifiers"`))),
+	fx.Provide(NewStore),
+	fx.Provide(fx.Annotate(NewStoreNotifier, fx.ResultTags(`group:"alert_notifiers"`))),
 	fx.Provide(fx.Annotate(NewTelegramNotifier, fx.As(new(Notifier)), fx.ResultTags(`group:"alert_notifiers"`))),
 )

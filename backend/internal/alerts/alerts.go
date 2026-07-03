@@ -16,15 +16,15 @@ import (
 var Module = fx.Module("alerts", fx.Provide(NewEvaluator), NotifierProviders, fx.Provide(NewDispatcher))
 
 type Alert struct {
-	ID        string    `json:"id"`
-	ServerID  string    `json:"server_id"`
-	Type      string    `json:"type"`
-	Severity  string    `json:"severity"`
-	Subject   string    `json:"subject,omitempty"`
-	Action    string    `json:"action,omitempty"`
-	ExitCode  int       `json:"exit_code,omitempty"`
-	Message   string    `json:"message"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        string    `json:"id" bson:"_id"`
+	ServerID  string    `json:"server_id" bson:"server_id"`
+	Type      string    `json:"type" bson:"type"`
+	Severity  string    `json:"severity" bson:"severity"`
+	Subject   string    `json:"subject,omitempty" bson:"subject,omitempty"`
+	Action    string    `json:"action,omitempty" bson:"action,omitempty"`
+	ExitCode  int       `json:"exit_code,omitempty" bson:"exit_code,omitempty"`
+	Message   string    `json:"message" bson:"message"`
+	CreatedAt time.Time `json:"created_at" bson:"created_at"`
 }
 
 type Evaluator struct{}

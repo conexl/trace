@@ -34,14 +34,14 @@ type Server struct {
 	ingest   *ingest.Service
 	pairing  *security.PairingService
 	tasks    tasks.Store
-	alerts   *alerts.MemoryNotifier
+	alerts   alerts.Store
 	presence *presence.Service
 	logger   *zap.Logger
 	mux      *http.ServeMux
 }
 
-func NewServer(cfg config.Config, store store.Store, ingest *ingest.Service, pairing *security.PairingService, taskStore tasks.Store, alertMemory *alerts.MemoryNotifier, presenceService *presence.Service, logger *zap.Logger) *Server {
-	server := &Server{cfg: cfg, store: store, ingest: ingest, pairing: pairing, tasks: taskStore, alerts: alertMemory, presence: presenceService, logger: logger.Named("http"), mux: http.NewServeMux()}
+func NewServer(cfg config.Config, store store.Store, ingest *ingest.Service, pairing *security.PairingService, taskStore tasks.Store, alertStore alerts.Store, presenceService *presence.Service, logger *zap.Logger) *Server {
+	server := &Server{cfg: cfg, store: store, ingest: ingest, pairing: pairing, tasks: taskStore, alerts: alertStore, presence: presenceService, logger: logger.Named("http"), mux: http.NewServeMux()}
 	server.routes()
 	return server
 }
@@ -215,7 +215,12 @@ func (s *Server) handleListAlerts(w http.ResponseWriter, r *http.Request) {
 			limit = parsed
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"alerts": s.alerts.Recent(limit)})
+	alerts, err := s.alerts.Recent(r.Context(), limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "list alerts failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"alerts": alerts})
 }
 
 func (s *Server) handleListServers(w http.ResponseWriter, r *http.Request) {

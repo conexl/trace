@@ -35,10 +35,10 @@ func newTestServer(t *testing.T, cfg config.Config) *Server {
 		t.Fatal(err)
 	}
 	pairing := security.NewPairingService(cfg, ca)
-	notifier := alerts.NewMemoryNotifier(cfg)
-	dispatcher := alerts.NewDispatcher(alerts.DispatcherParams{Notifiers: []alerts.Notifier{notifier}})
+	alertStore := alerts.NewMemoryStore(cfg)
+	dispatcher := alerts.NewDispatcher(alerts.DispatcherParams{Notifiers: []alerts.Notifier{alerts.NewStoreNotifier(alertStore)}})
 	presenceService := presence.NewService(cfg, presence.NewMemoryStore())
-	return NewServer(cfg, memory, ingest.NewService(memory, alerts.NewEvaluator(), dispatcher, presenceService), pairing, tasks.NewMemoryStore(), notifier, presenceService, zaptest.NewLogger(t))
+	return NewServer(cfg, memory, ingest.NewService(memory, alerts.NewEvaluator(), dispatcher, presenceService), pairing, tasks.NewMemoryStore(), alertStore, presenceService, zaptest.NewLogger(t))
 }
 
 func TestIngestAndReadServerState(t *testing.T) {
