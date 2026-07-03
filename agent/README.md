@@ -25,7 +25,7 @@ go run ./cmd/agent -config ./config.example.yaml -run-task disk-usage
 - Watchdog events: critical missing processes create events and can execute a configured restart policy.
 - Log tailing: bounded reads from configured files, so large logs do not explode memory.
 - Power guard: optional sleep inhibition via `systemd-inhibit` on Linux or `caffeinate` on macOS.
-- Offline buffer: snapshots are appended to JSONL, replayed in batches, and acked only after successful upload.
+- Offline buffer: snapshots are appended to durable JSONL, replayed in batches, acked only after successful upload, and corrupt lines are quarantined instead of blocking future replay.
 - Remote tasks: safe command runner for preconfigured tasks only, with JSONL audit events and a disabled-by-default shell policy.
 
 ## Remote Execution Safety
@@ -48,10 +48,9 @@ The updater downloads to a temporary file, verifies SHA256 when configured, chmo
 
 ## Next Milestone
 
-- Generate Go code from `proto/agent.proto` and add a real gRPC sink.
-- Add pairing flow for one-time token enrollment.
-- Add PTY streaming for remote shell behind an explicit allowlist and audit log.
-- Add Telegram alert worker on the backend side.
+- Add a real gRPC sink when the backend transport moves beyond HTTP.
+- Add PTY streaming for remote shell behind cloud-side authorization and a stricter audit workflow.
+- Persist richer watchdog restart history and exit-code timelines.
 
 ## Pairing
 
