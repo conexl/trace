@@ -38,13 +38,13 @@ Set `cloud.transport: http` and `cloud.endpoint` to send buffered snapshots to `
 
 ## Self Update
 
-Configure `update.url` and `update.sha256`, then run:
+Configure `update.url` and, for production, `update.signature_url` plus `update.ed25519_public_key`, then run:
 
 ```bash
 homelytics-agent -config /etc/homelytics/agent.yaml -self-update
 ```
 
-The updater downloads to a temporary file, verifies SHA256 when configured, chmods it executable, and atomically replaces the target binary. Under `systemd` or `launchd`, the supervisor can restart the daemon after the replacement. Example service files live in `deploy/`.
+The updater downloads to a temporary file, verifies SHA256 when configured, verifies an Ed25519 signature when `ed25519_public_key` is configured, chmods it executable, and atomically replaces the target binary. Under `systemd` or `launchd`, the supervisor can restart the daemon after the replacement. Example service files live in `deploy/`.
 
 ## Next Milestone
 

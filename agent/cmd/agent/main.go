@@ -73,7 +73,12 @@ func main() {
 	}
 
 	if *selfUpdate {
-		result, err := updater.New().Apply(ctx, cfg.Update.URL, cfg.Update.SHA256, *updateTarget)
+		result, err := updater.New().ApplyOptions(ctx, updater.Options{
+			URL:              cfg.Update.URL,
+			ExpectedSHA256:   cfg.Update.SHA256,
+			SignatureURL:     cfg.Update.SignatureURL,
+			Ed25519PublicKey: cfg.Update.Ed25519PublicKey,
+		}, *updateTarget)
 		writeJSON(result)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "update error: %v\n", err)

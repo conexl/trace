@@ -57,6 +57,8 @@ log_streams:
 update:
   url: ""
   sha256: ""
+  signature_url: ""
+  ed25519_public_key: "" # base64 raw Ed25519 public key; signature is base64 over the binary bytes
 
 remote:
   tasks_enabled: true

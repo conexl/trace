@@ -104,8 +104,10 @@ type RemoteConfig struct {
 }
 
 type UpdateConfig struct {
-	URL    string `yaml:"url"`
-	SHA256 string `yaml:"sha256"`
+	URL              string `yaml:"url"`
+	SHA256           string `yaml:"sha256"`
+	SignatureURL     string `yaml:"signature_url"`
+	Ed25519PublicKey string `yaml:"ed25519_public_key"`
 }
 
 type HardwareConfig struct {
