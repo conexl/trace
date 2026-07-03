@@ -17,6 +17,7 @@ import (
 	"backend/internal/alerts"
 	"backend/internal/config"
 	"backend/internal/ingest"
+	"backend/internal/presence"
 	"backend/internal/security"
 	"backend/internal/store"
 	"backend/internal/tasks"
@@ -28,18 +29,19 @@ import (
 var Module = fx.Module("httpapi", fx.Provide(NewServer), fx.Invoke(RegisterLifecycle))
 
 type Server struct {
-	cfg     config.Config
-	store   store.Store
-	ingest  *ingest.Service
-	pairing *security.PairingService
-	tasks   tasks.Store
-	alerts  *alerts.MemoryNotifier
-	logger  *zap.Logger
-	mux     *http.ServeMux
+	cfg      config.Config
+	store    store.Store
+	ingest   *ingest.Service
+	pairing  *security.PairingService
+	tasks    tasks.Store
+	alerts   *alerts.MemoryNotifier
+	presence *presence.Service
+	logger   *zap.Logger
+	mux      *http.ServeMux
 }
 
-func NewServer(cfg config.Config, store store.Store, ingest *ingest.Service, pairing *security.PairingService, taskStore tasks.Store, alertMemory *alerts.MemoryNotifier, logger *zap.Logger) *Server {
-	server := &Server{cfg: cfg, store: store, ingest: ingest, pairing: pairing, tasks: taskStore, alerts: alertMemory, logger: logger.Named("http"), mux: http.NewServeMux()}
+func NewServer(cfg config.Config, store store.Store, ingest *ingest.Service, pairing *security.PairingService, taskStore tasks.Store, alertMemory *alerts.MemoryNotifier, presenceService *presence.Service, logger *zap.Logger) *Server {
+	server := &Server{cfg: cfg, store: store, ingest: ingest, pairing: pairing, tasks: taskStore, alerts: alertMemory, presence: presenceService, logger: logger.Named("http"), mux: http.NewServeMux()}
 	server.routes()
 	return server
 }
@@ -158,6 +160,10 @@ func (s *Server) handlePollTasks(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "agent_id is required")
 		return
 	}
+	if err := s.presence.Touch(r.Context(), serverID, time.Now()); err != nil && r.Context().Err() != nil {
+		writeError(w, http.StatusRequestTimeout, "request canceled")
+		return
+	}
 	limit := 1
 	if raw := r.URL.Query().Get("limit"); raw != "" {
 		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= 10 {
@@ -218,6 +224,7 @@ func (s *Server) handleListServers(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "list servers failed")
 		return
 	}
+	servers = s.presence.ApplySummaries(r.Context(), servers, time.Now())
 	writeJSON(w, http.StatusOK, map[string]any{"servers": servers})
 }
 
@@ -256,6 +263,7 @@ func (s *Server) handleGetServer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "get server failed")
 		return
 	}
+	state.Summary = s.presence.ApplySummary(r.Context(), state.Summary, time.Now())
 	writeJSON(w, http.StatusOK, state)
 }
 

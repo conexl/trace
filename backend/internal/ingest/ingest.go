@@ -8,6 +8,7 @@ import (
 
 	"backend/internal/alerts"
 	"backend/internal/domain"
+	"backend/internal/presence"
 	"backend/internal/store"
 
 	"go.uber.org/fx"
@@ -19,6 +20,7 @@ type Service struct {
 	store      store.Store
 	evaluator  *alerts.Evaluator
 	dispatcher *alerts.Dispatcher
+	presence   *presence.Service
 }
 
 type Result struct {
@@ -27,8 +29,8 @@ type Result struct {
 	Alerts   []alerts.Alert       `json:"alerts,omitempty"`
 }
 
-func NewService(store store.Store, evaluator *alerts.Evaluator, dispatcher *alerts.Dispatcher) *Service {
-	return &Service{store: store, evaluator: evaluator, dispatcher: dispatcher}
+func NewService(store store.Store, evaluator *alerts.Evaluator, dispatcher *alerts.Dispatcher, presence *presence.Service) *Service {
+	return &Service{store: store, evaluator: evaluator, dispatcher: dispatcher, presence: presence}
 }
 
 func (s *Service) Ingest(ctx context.Context, payload []byte) (Result, error) {
@@ -60,6 +62,9 @@ func (s *Service) Ingest(ctx context.Context, payload []byte) (Result, error) {
 			return Result{}, err
 		}
 		states = append(states, state)
+		if err := s.presence.Touch(ctx, state.Summary.ID, time.Now()); err != nil && ctx.Err() != nil {
+			return Result{}, err
+		}
 		snapshotAlerts := s.evaluator.Evaluate(state)
 		if err := s.dispatcher.Dispatch(ctx, snapshotAlerts); err != nil {
 			return Result{}, err

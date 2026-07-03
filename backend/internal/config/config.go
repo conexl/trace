@@ -19,6 +19,7 @@ type Config struct {
 	Pairing     PairingConfig
 	State       StateConfig
 	Mongo       MongoConfig
+	Redis       RedisConfig
 	Alerts      AlertsConfig
 	Environment string
 }
@@ -58,6 +59,14 @@ type StateConfig struct {
 type MongoConfig struct {
 	URI            string
 	Database       string
+	ConnectTimeout time.Duration
+}
+
+type RedisConfig struct {
+	Addr           string
+	Password       string
+	DB             int
+	KeyPrefix      string
 	ConnectTimeout time.Duration
 }
 
@@ -101,6 +110,13 @@ func Load() (Config, error) {
 			Database:       env("HOMELYTICS_MONGO_DATABASE", "homelytics"),
 			ConnectTimeout: envDuration("HOMELYTICS_MONGO_CONNECT_TIMEOUT", 5*time.Second),
 		},
+		Redis: RedisConfig{
+			Addr:           os.Getenv("HOMELYTICS_REDIS_ADDR"),
+			Password:       os.Getenv("HOMELYTICS_REDIS_PASSWORD"),
+			DB:             envInt("HOMELYTICS_REDIS_DB", 0),
+			KeyPrefix:      env("HOMELYTICS_REDIS_KEY_PREFIX", "homelytics"),
+			ConnectTimeout: envDuration("HOMELYTICS_REDIS_CONNECT_TIMEOUT", 3*time.Second),
+		},
 		Alerts: AlertsConfig{
 			MemoryLimit:      envInt("HOMELYTICS_ALERT_MEMORY_LIMIT", 200),
 			TelegramBotToken: os.Getenv("HOMELYTICS_TELEGRAM_BOT_TOKEN"),
@@ -134,6 +150,15 @@ func Load() (Config, error) {
 	}
 	if cfg.Mongo.ConnectTimeout <= 0 {
 		return Config{}, fmt.Errorf("HOMELYTICS_MONGO_CONNECT_TIMEOUT must be positive")
+	}
+	if cfg.Redis.DB < 0 {
+		return Config{}, fmt.Errorf("HOMELYTICS_REDIS_DB must not be negative")
+	}
+	if cfg.Redis.KeyPrefix == "" {
+		return Config{}, fmt.Errorf("HOMELYTICS_REDIS_KEY_PREFIX must not be empty")
+	}
+	if cfg.Redis.ConnectTimeout <= 0 {
+		return Config{}, fmt.Errorf("HOMELYTICS_REDIS_CONNECT_TIMEOUT must be positive")
 	}
 	return cfg, nil
 }

@@ -1,11 +1,12 @@
 # Homelytics Backend
 
-Production-shaped backend for the Homelytics hackathon product. It uses Fx for dependency injection and lifecycle management, MongoDB as the production document store, and an in-memory store when Mongo is not configured for fast local demos/tests.
+Production-shaped backend for the Homelytics hackathon product. It uses Fx for dependency injection and lifecycle management, MongoDB as the production document store, Redis for hot runtime presence, and in-memory fallbacks when external services are not configured for fast local demos/tests.
 
 ## Architecture
 
 - `config`: environment-driven configuration.
 - `store`: deep storage seam. Mongo adapter in production, memory adapter for tests/dev fallback.
+- `presence`: Redis-backed agent presence with memory fallback.
 - `ingest`: accepts agent snapshot batches and converts them into current server state.
 - `alerts`: evaluates snapshot-derived incidents and sends best-effort notifications.
 - `httpapi`: HTTP routes, auth middleware, request limits, security headers, and graceful server lifecycle.
@@ -57,6 +58,18 @@ go run ./cmd/backend
 
 The backend stores the current server state in the `servers` collection with a unique index on `summary.id`.
 
+## Redis Presence
+
+Set Redis env vars to track hot agent presence outside Mongo. Snapshot ingest and agent task polling both refresh the presence TTL, so frontend online/offline badges do not have to wait for the next full metrics snapshot.
+
+```bash
+HOMELYTICS_REDIS_ADDR='localhost:6379' \
+HOMELYTICS_REDIS_KEY_PREFIX='homelytics' \
+go run ./cmd/backend
+```
+
+If Redis is not configured, the backend uses an in-memory fallback and still derives status from `last_seen`.
+
 ## Environment
 
 - `HOMELYTICS_HTTP_ADDR`, default `:8080`
@@ -66,6 +79,10 @@ The backend stores the current server state in the `servers` collection with a u
 - `HOMELYTICS_MAX_EVENTS`, default `200`
 - `HOMELYTICS_MONGO_URI`, empty means in-memory fallback
 - `HOMELYTICS_MONGO_DATABASE`, default `homelytics`
+- `HOMELYTICS_REDIS_ADDR`, empty means in-memory presence fallback
+- `HOMELYTICS_REDIS_PASSWORD`, optional
+- `HOMELYTICS_REDIS_DB`, default `0`
+- `HOMELYTICS_REDIS_KEY_PREFIX`, default `homelytics`
 - `HOMELYTICS_ALERT_MEMORY_LIMIT`, default `200`
 - `HOMELYTICS_TELEGRAM_BOT_TOKEN`, optional
 - `HOMELYTICS_TELEGRAM_CHAT_ID`, optional

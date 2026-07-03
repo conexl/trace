@@ -13,6 +13,7 @@ import (
 	"backend/internal/alerts"
 	"backend/internal/config"
 	"backend/internal/ingest"
+	"backend/internal/presence"
 	"backend/internal/security"
 	"backend/internal/store"
 	"backend/internal/tasks"
@@ -36,7 +37,8 @@ func newTestServer(t *testing.T, cfg config.Config) *Server {
 	pairing := security.NewPairingService(cfg, ca)
 	notifier := alerts.NewMemoryNotifier(cfg)
 	dispatcher := alerts.NewDispatcher(alerts.DispatcherParams{Notifiers: []alerts.Notifier{notifier}})
-	return NewServer(cfg, memory, ingest.NewService(memory, alerts.NewEvaluator(), dispatcher), pairing, tasks.NewMemoryStore(), notifier, zaptest.NewLogger(t))
+	presenceService := presence.NewService(cfg, presence.NewMemoryStore())
+	return NewServer(cfg, memory, ingest.NewService(memory, alerts.NewEvaluator(), dispatcher, presenceService), pairing, tasks.NewMemoryStore(), notifier, presenceService, zaptest.NewLogger(t))
 }
 
 func TestIngestAndReadServerState(t *testing.T) {
@@ -177,6 +179,45 @@ func TestTaskQueueHTTPLifecycle(t *testing.T) {
 	}
 	if completed.Status != tasks.StatusCompleted || completed.Result.Stdout != "ok" {
 		t.Fatalf("completed = %#v", completed)
+	}
+}
+
+func TestTaskPollingUpdatesPresence(t *testing.T) {
+	now := time.Now().UTC()
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Auth: config.AuthConfig{AdminToken: "admin-token"}}
+	server := newTestServer(t, cfg)
+	payload := []byte(`{"snapshots":[{"agent_name":"devbox","collected_at":"` + now.Add(-2*time.Minute).Format(time.RFC3339) + `"}]}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/agent/snapshots", bytes.NewReader(payload))
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("ingest status = %d body=%s", w.Code, w.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/agent/tasks?agent_id=devbox", nil)
+	w = httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("poll status = %d body=%s", w.Code, w.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/servers/devbox", nil)
+	req.Header.Set("Authorization", "Bearer admin-token")
+	w = httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("get status = %d body=%s", w.Code, w.Body.String())
+	}
+	var state struct {
+		Summary struct {
+			Status string `json:"status"`
+		} `json:"summary"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &state); err != nil {
+		t.Fatal(err)
+	}
+	if state.Summary.Status != "online" {
+		t.Fatalf("status = %q body=%s", state.Summary.Status, w.Body.String())
 	}
 }
 

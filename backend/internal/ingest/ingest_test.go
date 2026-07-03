@@ -8,6 +8,7 @@ import (
 
 	"backend/internal/alerts"
 	"backend/internal/config"
+	"backend/internal/presence"
 	"backend/internal/store"
 )
 
@@ -44,5 +45,6 @@ func TestServiceRejectsAnonymousSnapshot(t *testing.T) {
 func newTestService(memory *store.MemoryStore) *Service {
 	notifier := alerts.NewMemoryNotifier(config.Config{Alerts: config.AlertsConfig{MemoryLimit: 10}})
 	dispatcher := alerts.NewDispatcher(alerts.DispatcherParams{Notifiers: []alerts.Notifier{notifier}})
-	return NewService(memory, alerts.NewEvaluator(), dispatcher)
+	presenceService := presence.NewService(config.Config{State: config.StateConfig{OfflineAfter: time.Minute}}, presence.NewMemoryStore())
+	return NewService(memory, alerts.NewEvaluator(), dispatcher, presenceService)
 }

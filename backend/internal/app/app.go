@@ -6,6 +6,7 @@ import (
 	"backend/internal/httpapi"
 	"backend/internal/ingest"
 	"backend/internal/logging"
+	"backend/internal/presence"
 	"backend/internal/security"
 	"backend/internal/store"
 	"backend/internal/tasks"
@@ -21,6 +22,7 @@ func New() *fx.App {
 		store.Module,
 		tasks.Module,
 		alerts.Module,
+		presence.Module,
 		ingest.Module,
 		httpapi.Module,
 	)
