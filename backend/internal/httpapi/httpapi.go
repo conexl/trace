@@ -304,8 +304,46 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
+		if s.applyCORS(w, r) && r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (s *Server) applyCORS(w http.ResponseWriter, r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" || len(s.cfg.HTTP.AllowedOrigins) == 0 {
+		return false
+	}
+	allowedOrigin, ok := s.allowedOrigin(origin)
+	if !ok {
+		if r.Method == http.MethodOptions {
+			writeError(w, http.StatusForbidden, "origin is not allowed")
+			return true
+		}
+		return false
+	}
+	header := w.Header()
+	header.Set("Vary", "Origin")
+	header.Set("Access-Control-Allow-Origin", allowedOrigin)
+	header.Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	header.Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+	header.Set("Access-Control-Max-Age", "600")
+	return true
+}
+
+func (s *Server) allowedOrigin(origin string) (string, bool) {
+	for _, allowed := range s.cfg.HTTP.AllowedOrigins {
+		if allowed == "*" {
+			return "*", true
+		}
+		if allowed == origin {
+			return origin, true
+		}
+	}
+	return "", false
 }
 
 func bearerToken(value string) string {

@@ -73,6 +73,7 @@ If Redis is not configured, the backend uses an in-memory fallback and still der
 ## Environment
 
 - `HOMELYTICS_HTTP_ADDR`, default `:8080`
+- `HOMELYTICS_CORS_ALLOWED_ORIGINS`, comma-separated frontend origins, for example `http://localhost:5173`
 - `HOMELYTICS_INGEST_TOKENS`, comma-separated bearer tokens for agent ingest
 - `HOMELYTICS_ADMIN_TOKEN`, optional bearer token for read APIs
 - `HOMELYTICS_OFFLINE_AFTER`, default `3m`

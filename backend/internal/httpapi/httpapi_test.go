@@ -94,6 +94,38 @@ func TestAdminTokenProtectsReadAPI(t *testing.T) {
 	}
 }
 
+func TestCORSPreflightAllowsConfiguredOrigin(t *testing.T) {
+	cfg := config.Config{HTTP: config.HTTPConfig{AllowedOrigins: []string{"http://localhost:5173"}}, State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}}
+	server := newTestServer(t, cfg)
+	req := httptest.NewRequest(http.MethodOptions, "/v1/servers", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	}
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:5173" {
+		t.Fatalf("allow-origin = %q", got)
+	}
+	if got := w.Header().Get("Access-Control-Allow-Headers"); got == "" {
+		t.Fatal("missing allow-headers")
+	}
+}
+
+func TestCORSPreflightRejectsUnknownOrigin(t *testing.T) {
+	cfg := config.Config{HTTP: config.HTTPConfig{AllowedOrigins: []string{"http://localhost:5173"}}, State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}}
+	server := newTestServer(t, cfg)
+	req := httptest.NewRequest(http.MethodOptions, "/v1/servers", nil)
+	req.Header.Set("Origin", "http://evil.example")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestPairingClaimEndpoint(t *testing.T) {
 	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Pairing: config.PairingConfig{Tokens: map[string]struct{}{"pair-once": {}}, CertTTL: time.Hour}}
 	server := newTestServer(t, cfg)

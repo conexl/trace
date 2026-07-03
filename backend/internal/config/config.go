@@ -29,6 +29,7 @@ type HTTPConfig struct {
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
 	ShutdownTimeout time.Duration
+	AllowedOrigins  []string
 }
 
 type TLSConfig struct {
@@ -83,6 +84,7 @@ func Load() (Config, error) {
 			ReadTimeout:     envDuration("HOMELYTICS_HTTP_READ_TIMEOUT", 5*time.Second),
 			WriteTimeout:    envDuration("HOMELYTICS_HTTP_WRITE_TIMEOUT", 10*time.Second),
 			ShutdownTimeout: envDuration("HOMELYTICS_HTTP_SHUTDOWN_TIMEOUT", 5*time.Second),
+			AllowedOrigins:  parseCSV(os.Getenv("HOMELYTICS_CORS_ALLOWED_ORIGINS")),
 		},
 		TLS: TLSConfig{
 			Enabled:           envBool("HOMELYTICS_TLS_ENABLED", false),
@@ -219,13 +221,24 @@ func envInt(key string, fallback int) int {
 }
 
 func parseTokenSet(raw string) map[string]struct{} {
-	values := strings.Split(raw, ",")
 	tokens := make(map[string]struct{})
-	for _, value := range values {
+	for _, value := range parseCSV(raw) {
 		token := strings.TrimSpace(value)
 		if token != "" {
 			tokens[token] = struct{}{}
 		}
 	}
 	return tokens
+}
+
+func parseCSV(raw string) []string {
+	values := strings.Split(raw, ",")
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		item := strings.TrimSpace(value)
+		if item != "" {
+			out = append(out, item)
+		}
+	}
+	return out
 }
