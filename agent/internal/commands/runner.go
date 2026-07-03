@@ -1,13 +1,15 @@
 package commands
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,18 +24,21 @@ type Runner struct {
 }
 
 type Result struct {
-	Name      string        `json:"name"`
-	ExitCode  int           `json:"exit_code"`
-	Stdout    string        `json:"stdout"`
-	Stderr    string        `json:"stderr"`
-	Duration  time.Duration `json:"duration"`
-	StartedAt time.Time     `json:"started_at"`
+	Name            string        `json:"name"`
+	ExitCode        int           `json:"exit_code"`
+	Stdout          string        `json:"stdout"`
+	Stderr          string        `json:"stderr"`
+	OutputTruncated bool          `json:"output_truncated,omitempty"`
+	Duration        time.Duration `json:"duration"`
+	StartedAt       time.Time     `json:"started_at"`
 }
 
 type TaskInfo struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Command     []string `json:"command"`
+	Name           string   `json:"name"`
+	Description    string   `json:"description"`
+	Command        []string `json:"command"`
+	WorkingDir     string   `json:"working_dir,omitempty"`
+	MaxOutputBytes int64    `json:"max_output_bytes"`
 }
 
 type AuditEvent struct {
@@ -47,6 +52,12 @@ type AuditEvent struct {
 func NewRunner(cfg config.Config) *Runner {
 	byName := make(map[string]config.TaskConfig, len(cfg.Tasks))
 	for _, task := range cfg.Tasks {
+		if task.Timeout <= 0 {
+			task.Timeout = 60 * time.Second
+		}
+		if task.MaxOutputBytes <= 0 {
+			task.MaxOutputBytes = 64 * 1024
+		}
 		byName[task.Name] = task
 	}
 	return &Runner{tasks: byName, tasksEnabled: cfg.Remote.TasksEnabled, auditPath: cfg.Remote.AuditPath}
@@ -55,7 +66,7 @@ func NewRunner(cfg config.Config) *Runner {
 func (r *Runner) List() []TaskInfo {
 	infos := make([]TaskInfo, 0, len(r.tasks))
 	for _, task := range r.tasks {
-		infos = append(infos, TaskInfo{Name: task.Name, Description: task.Description, Command: append([]string(nil), task.Command...)})
+		infos = append(infos, TaskInfo{Name: task.Name, Description: task.Description, Command: append([]string(nil), task.Command...), WorkingDir: task.WorkingDir, MaxOutputBytes: task.MaxOutputBytes})
 	}
 	return infos
 }
@@ -77,24 +88,33 @@ func (r *Runner) Run(ctx context.Context, name string) (Result, error) {
 		r.audit(AuditEvent{Task: name, Allowed: false, Error: err.Error(), Timestamp: time.Now()})
 		return Result{}, err
 	}
+	if err := validateExecutablePolicy(task.Command[0]); err != nil {
+		r.audit(AuditEvent{Task: name, Allowed: false, Error: err.Error(), Timestamp: time.Now()})
+		return Result{}, err
+	}
 
 	started := time.Now()
 	runCtx, cancel := context.WithTimeout(ctx, task.Timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(runCtx, task.Command[0], task.Command[1:]...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	cmd.Dir = task.WorkingDir
+	cmd.Env = sandboxEnv(task.Env)
+	applyProcessSandbox(cmd)
+	stdout := newLimitBuffer(task.MaxOutputBytes)
+	stderr := newLimitBuffer(task.MaxOutputBytes)
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 	err := cmd.Run()
 
 	result := Result{
-		Name:      name,
-		ExitCode:  0,
-		Stdout:    stdout.String(),
-		Stderr:    stderr.String(),
-		Duration:  time.Since(started),
-		StartedAt: started,
+		Name:            name,
+		ExitCode:        0,
+		Stdout:          stdout.String(),
+		Stderr:          stderr.String(),
+		OutputTruncated: stdout.truncated || stderr.truncated,
+		Duration:        time.Since(started),
+		StartedAt:       started,
 	}
 	if cmd.ProcessState != nil {
 		result.ExitCode = cmd.ProcessState.ExitCode()
@@ -107,6 +127,36 @@ func (r *Runner) Run(ctx context.Context, name string) (Result, error) {
 	}
 	r.audit(audit)
 	return result, nil
+}
+
+func validateExecutablePolicy(command string) error {
+	switch strings.ToLower(filepath.Base(command)) {
+	case "sh", "bash", "zsh", "fish", "pwsh", "powershell", "cmd", "cmd.exe":
+		return fmt.Errorf("task command %q is forbidden by sandbox policy", command)
+	}
+	return nil
+}
+
+func sandboxEnv(extra map[string]string) []string {
+	env := map[string]string{
+		"PATH":   "/usr/bin:/bin:/usr/sbin:/sbin",
+		"HOME":   "/nonexistent",
+		"LANG":   "C",
+		"LC_ALL": "C",
+	}
+	for key, value := range extra {
+		env[key] = value
+	}
+	keys := make([]string, 0, len(env))
+	for key := range env {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	out := make([]string, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, key+"="+env[key])
+	}
+	return out
 }
 
 func (r *Runner) audit(event AuditEvent) {

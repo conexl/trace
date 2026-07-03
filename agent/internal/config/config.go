@@ -4,6 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -90,10 +93,13 @@ type LogStream struct {
 }
 
 type TaskConfig struct {
-	Name        string        `yaml:"name"`
-	Command     []string      `yaml:"command"`
-	Timeout     time.Duration `yaml:"timeout"`
-	Description string        `yaml:"description"`
+	Name           string            `yaml:"name"`
+	Command        []string          `yaml:"command"`
+	Timeout        time.Duration     `yaml:"timeout"`
+	Description    string            `yaml:"description"`
+	WorkingDir     string            `yaml:"working_dir"`
+	Env            map[string]string `yaml:"env"`
+	MaxOutputBytes int64             `yaml:"max_output_bytes"`
 }
 
 type RemoteConfig struct {
@@ -243,6 +249,9 @@ func (c *Config) applyDefaults() {
 		if c.Tasks[i].Timeout <= 0 {
 			c.Tasks[i].Timeout = 60 * time.Second
 		}
+		if c.Tasks[i].MaxOutputBytes == 0 {
+			c.Tasks[i].MaxOutputBytes = 64 * 1024
+		}
 	}
 }
 
@@ -300,6 +309,41 @@ func (c Config) Validate() error {
 		if task.Name == "" || len(task.Command) == 0 {
 			return errors.New("task needs name and command")
 		}
+		if err := validateTaskSandbox(task); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var taskEnvNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+func validateTaskSandbox(task TaskConfig) error {
+	command := filepath.Base(task.Command[0])
+	switch strings.ToLower(command) {
+	case "sh", "bash", "zsh", "fish", "pwsh", "powershell", "cmd", "cmd.exe":
+		return fmt.Errorf("task %q uses forbidden shell command %q", task.Name, command)
+	}
+	if task.WorkingDir != "" {
+		cleaned := filepath.Clean(task.WorkingDir)
+		if !filepath.IsAbs(cleaned) {
+			return fmt.Errorf("task %q working_dir must be absolute", task.Name)
+		}
+		if cleaned != task.WorkingDir {
+			return fmt.Errorf("task %q working_dir must be clean", task.Name)
+		}
+	}
+	for key := range task.Env {
+		if !taskEnvNamePattern.MatchString(key) {
+			return fmt.Errorf("task %q has invalid env name %q", task.Name, key)
+		}
+		switch key {
+		case "PATH", "LD_PRELOAD", "DYLD_INSERT_LIBRARIES":
+			return fmt.Errorf("task %q cannot override env %q", task.Name, key)
+		}
+	}
+	if task.MaxOutputBytes < 0 {
+		return fmt.Errorf("task %q has negative max_output_bytes", task.Name)
 	}
 	return nil
 }

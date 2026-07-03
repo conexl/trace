@@ -61,3 +61,21 @@ func TestValidateRejectsNegativeWatchdogPolicy(t *testing.T) {
 		t.Fatal("Validate() expected max_restarts error")
 	}
 }
+
+func TestValidateRejectsShellTask(t *testing.T) {
+	cfg := Default()
+	cfg.Tasks = []TaskConfig{{Name: "shell", Command: []string{"sh", "-c", "echo nope"}}}
+	cfg.applyDefaults()
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate() expected shell task error")
+	}
+}
+
+func TestValidateRejectsUnsafeTaskEnv(t *testing.T) {
+	cfg := Default()
+	cfg.Tasks = []TaskConfig{{Name: "env", Command: []string{"env"}, Env: map[string]string{"LD_PRELOAD": "/tmp/lib.so"}}}
+	cfg.applyDefaults()
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate() expected env policy error")
+	}
+}

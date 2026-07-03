@@ -52,3 +52,66 @@ func TestRunnerHonorsDisabledPolicy(t *testing.T) {
 		t.Fatal("Run() expected disabled policy error")
 	}
 }
+
+func TestRunnerLimitsTaskOutput(t *testing.T) {
+	runner := NewRunner(config.Config{
+		Remote: config.RemoteConfig{TasksEnabled: true, AuditPath: filepath.Join(t.TempDir(), "audit.jsonl")},
+		Tasks:  []config.TaskConfig{{Name: "printf", Command: []string{"printf", "abcdef"}, Timeout: time.Second, MaxOutputBytes: 3}},
+	})
+	result, err := runner.Run(context.Background(), "printf")
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if result.Stdout != "abc" || !result.OutputTruncated {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestRunnerUsesWorkingDirAndSandboxEnv(t *testing.T) {
+	dir := t.TempDir()
+	runner := NewRunner(config.Config{
+		Remote: config.RemoteConfig{TasksEnabled: true, AuditPath: filepath.Join(t.TempDir(), "audit.jsonl")},
+		Tasks: []config.TaskConfig{{
+			Name:       "pwd",
+			Command:    []string{"pwd"},
+			Timeout:    time.Second,
+			WorkingDir: dir,
+		}},
+	})
+	result, err := runner.Run(context.Background(), "pwd")
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if strings.TrimSpace(result.Stdout) != dir {
+		t.Fatalf("stdout = %q", result.Stdout)
+	}
+}
+
+func TestRunnerUsesSandboxEnv(t *testing.T) {
+	runner := NewRunner(config.Config{
+		Remote: config.RemoteConfig{TasksEnabled: true, AuditPath: filepath.Join(t.TempDir(), "audit.jsonl")},
+		Tasks: []config.TaskConfig{{
+			Name:    "env",
+			Command: []string{"env"},
+			Timeout: time.Second,
+			Env:     map[string]string{"CUSTOM": "ok"},
+		}},
+	})
+	result, err := runner.Run(context.Background(), "env")
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if !strings.Contains(result.Stdout, "CUSTOM=ok") || strings.Contains(result.Stdout, "LD_PRELOAD=") {
+		t.Fatalf("stdout = %q", result.Stdout)
+	}
+}
+
+func TestRunnerRejectsShellAtRuntime(t *testing.T) {
+	runner := NewRunner(config.Config{
+		Remote: config.RemoteConfig{TasksEnabled: true, AuditPath: filepath.Join(t.TempDir(), "audit.jsonl")},
+		Tasks:  []config.TaskConfig{{Name: "shell", Command: []string{"sh", "-c", "echo nope"}, Timeout: time.Second}},
+	})
+	if _, err := runner.Run(context.Background(), "shell"); err == nil {
+		t.Fatal("Run() expected shell policy error")
+	}
+}

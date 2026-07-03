@@ -74,6 +74,9 @@ tasks:
     description: Print filesystem usage.
     command: ["df", "-h"]
     timeout: 10s
+    working_dir: ""
+    max_output_bytes: 65536
+    env: {}
 
 power:
   prevent_sleep: false
