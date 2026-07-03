@@ -66,8 +66,13 @@ type SMARTDevice struct {
 }
 
 type PowerSnapshot struct {
-	Profile  string `json:"profile,omitempty"`
-	Governor string `json:"governor,omitempty"`
+	Profile        string `json:"profile,omitempty"`
+	Governor       string `json:"governor,omitempty"`
+	Architecture   string `json:"architecture,omitempty"`
+	Chip           string `json:"chip,omitempty"`
+	ThermalLevel   string `json:"thermal_level,omitempty"`
+	CPUSpeedLimit  string `json:"cpu_speed_limit,omitempty"`
+	SchedulerLimit string `json:"scheduler_limit,omitempty"`
 }
 
 type NetworkSnapshot struct {

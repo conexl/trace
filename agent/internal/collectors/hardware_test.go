@@ -38,3 +38,14 @@ func TestParseSMARTHealth(t *testing.T) {
 		t.Fatalf("parse failed = %v, %v", healthy, err)
 	}
 }
+
+func TestParsePMSetTherm(t *testing.T) {
+	power := parsePMSetTherm(`Note: No thermal warning level has been recorded
+CPU_Speed_Limit     = 75
+Scheduler_Limit     = 100
+Thermal_Level       = 1
+`)
+	if power.CPUSpeedLimit != "75" || power.SchedulerLimit != "100" || power.ThermalLevel != "1" {
+		t.Fatalf("power = %#v", power)
+	}
+}

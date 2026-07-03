@@ -19,7 +19,7 @@ go run ./cmd/agent -config ./config.example.yaml -run-task disk-usage
 
 ## MVP Capabilities
 
-- System telemetry: host info, uptime, CPU, per-core CPU, memory, swap, disks, temperatures, SMART health, and power profile/governor when available.
+- System telemetry: host info, uptime, CPU, per-core CPU, memory, swap, disks, temperatures, SMART health, Linux power profile/governor, and macOS Apple Silicon thermal pressure/CPU limit hints when available.
 - Network audit: public IP, DNS A/AAAA records compared to public IP, TCP port checks, listening TCP ports, lightweight download speed tests, and Rx/Tx counters per interface.
 - Process/service monitoring: process matching by name/cmdline plus native `systemd` on Linux and `launchd` on macOS where available, including service exit status where the OS exposes it.
 - Watchdog events: critical missing processes create events and can execute a configured restart policy with max restart windows and cooldowns.

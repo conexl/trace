@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -55,7 +56,83 @@ func collectTemperatures(root string) []TemperatureSensor {
 func collectPower(root string) PowerSnapshot {
 	profile := strings.TrimSpace(readString(filepath.Join(root, "firmware/acpi/platform_profile")))
 	governor := strings.TrimSpace(readString(filepath.Join(root, "devices/system/cpu/cpu0/cpufreq/scaling_governor")))
-	return PowerSnapshot{Profile: profile, Governor: governor}
+	power := PowerSnapshot{Profile: profile, Governor: governor, Architecture: runtime.GOARCH}
+	if runtime.GOOS == "darwin" {
+		power = mergePower(power, collectDarwinPower(context.Background()))
+	}
+	return power
+}
+
+func collectDarwinPower(ctx context.Context) PowerSnapshot {
+	power := PowerSnapshot{Architecture: runtime.GOARCH}
+	if chip := runTrimmed(ctx, 2*time.Second, "sysctl", "-n", "machdep.cpu.brand_string"); chip != "" {
+		power.Chip = chip
+	}
+	if arm64 := runTrimmed(ctx, 2*time.Second, "sysctl", "-n", "hw.optional.arm64"); arm64 == "1" && power.Chip == "" {
+		power.Chip = "Apple Silicon"
+	}
+	if out := runTrimmed(ctx, 2*time.Second, "pmset", "-g", "therm"); out != "" {
+		power = mergePower(power, parsePMSetTherm(out))
+	}
+	return power
+}
+
+func parsePMSetTherm(output string) PowerSnapshot {
+	var power PowerSnapshot
+	scanner := bufio.NewScanner(strings.NewReader(output))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		switch key {
+		case "CPU_Speed_Limit":
+			power.CPUSpeedLimit = value
+		case "Scheduler_Limit":
+			power.SchedulerLimit = value
+		case "Thermal_Level":
+			power.ThermalLevel = value
+		}
+	}
+	return power
+}
+
+func mergePower(base PowerSnapshot, extra PowerSnapshot) PowerSnapshot {
+	if base.Profile == "" {
+		base.Profile = extra.Profile
+	}
+	if base.Governor == "" {
+		base.Governor = extra.Governor
+	}
+	if base.Architecture == "" {
+		base.Architecture = extra.Architecture
+	}
+	if base.Chip == "" {
+		base.Chip = extra.Chip
+	}
+	if base.ThermalLevel == "" {
+		base.ThermalLevel = extra.ThermalLevel
+	}
+	if base.CPUSpeedLimit == "" {
+		base.CPUSpeedLimit = extra.CPUSpeedLimit
+	}
+	if base.SchedulerLimit == "" {
+		base.SchedulerLimit = extra.SchedulerLimit
+	}
+	return base
+}
+
+func runTrimmed(ctx context.Context, timeout time.Duration, name string, args ...string) string {
+	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	out, err := exec.CommandContext(cmdCtx, name, args...).CombinedOutput()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 func collectSMART(ctx context.Context, devices []string) []SMARTDevice {
