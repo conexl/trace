@@ -37,11 +37,17 @@ processes:
     service: ssh
     critical: true
     restart: false
+    max_restarts: 3
+    restart_window: 5m
+    restart_cooldown: 1m
   - name: nginx
     match: nginx
     service: nginx
     critical: false
     restart: false
+    max_restarts: 3
+    restart_window: 5m
+    restart_cooldown: 1m
 
 log_streams:
   - name: system

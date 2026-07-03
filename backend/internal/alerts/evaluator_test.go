@@ -32,3 +32,25 @@ func TestEvaluatorCreatesAlertsFromSnapshot(t *testing.T) {
 		}
 	}
 }
+
+func TestEvaluatorCreatesAlertsFromWatchdogRestartEvents(t *testing.T) {
+	state := domain.ServerState{
+		Summary: domain.ServerSummary{ID: "devbox"},
+		Snapshot: domain.AgentSnapshot{
+			Events: []domain.AgentEvent{
+				{Type: "process.restart_failed", Severity: "critical", Subject: "nginx", Action: "service restart nginx", ExitCode: 1, Message: "permission denied", Timestamp: time.Now()},
+				{Type: "process.restart_suppressed", Severity: "critical", Subject: "nginx", Message: "cooldown active", Timestamp: time.Now()},
+			},
+		},
+	}
+	alerts := NewEvaluator().Evaluate(state)
+	if len(alerts) != 2 {
+		t.Fatalf("alerts = %#v", alerts)
+	}
+	if alerts[0].Type != "process.restart_failed" || alerts[1].Type != "process.restart_suppressed" {
+		t.Fatalf("alerts = %#v", alerts)
+	}
+	if alerts[0].Action != "service restart nginx" || alerts[0].ExitCode != 1 {
+		t.Fatalf("watchdog metadata = %#v", alerts[0])
+	}
+}

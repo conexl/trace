@@ -21,8 +21,8 @@ go run ./cmd/agent -config ./config.example.yaml -run-task disk-usage
 
 - System telemetry: host info, uptime, CPU, per-core CPU, memory, swap, disks, temperatures, SMART health, and power profile/governor when available.
 - Network audit: public IP, DNS A/AAAA records compared to public IP, TCP port checks, listening TCP ports, lightweight download speed tests, and Rx/Tx counters per interface.
-- Process/service monitoring: process matching by name/cmdline plus native `systemd` on Linux and `launchd` on macOS where available.
-- Watchdog events: critical missing processes create events and can execute a configured restart policy.
+- Process/service monitoring: process matching by name/cmdline plus native `systemd` on Linux and `launchd` on macOS where available, including service exit status where the OS exposes it.
+- Watchdog events: critical missing processes create events and can execute a configured restart policy with max restart windows and cooldowns.
 - Log tailing: bounded reads from configured files, so large logs do not explode memory.
 - Power guard: optional sleep inhibition via `systemd-inhibit` on Linux or `caffeinate` on macOS.
 - Offline buffer: snapshots are appended to durable JSONL, replayed in batches, acked only after successful upload, and corrupt lines are quarantined instead of blocking future replay.
@@ -50,7 +50,7 @@ The updater downloads to a temporary file, verifies SHA256 when configured, chmo
 
 - Add a real gRPC sink when the backend transport moves beyond HTTP.
 - Add PTY streaming for remote shell behind cloud-side authorization and a stricter audit workflow.
-- Persist richer watchdog restart history and exit-code timelines.
+- Persist richer watchdog restart history across agent restarts.
 
 ## Pairing
 

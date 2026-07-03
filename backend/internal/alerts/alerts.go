@@ -21,6 +21,8 @@ type Alert struct {
 	Type      string    `json:"type"`
 	Severity  string    `json:"severity"`
 	Subject   string    `json:"subject,omitempty"`
+	Action    string    `json:"action,omitempty"`
+	ExitCode  int       `json:"exit_code,omitempty"`
 	Message   string    `json:"message"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -34,13 +36,29 @@ func (e *Evaluator) Evaluate(state domain.ServerState) []Alert {
 	createdAt := time.Now().UTC()
 	alerts := make([]Alert, 0)
 	for _, event := range state.Snapshot.Events {
-		if event.Severity == "critical" || event.Type == "process.down" {
-			alerts = append(alerts, newAlert(serverID, event.Type, event.Severity, event.Subject, event.Message, createdAt))
+		if shouldAlertOnEvent(event) {
+			alerts = append(alerts, newEventAlert(serverID, event, createdAt))
 		}
 	}
 	alerts = append(alerts, e.evaluateDNS(serverID, state.Snapshot.Network.PublicIP, state.Snapshot.Network.DNS, createdAt)...)
 	alerts = append(alerts, e.evaluatePorts(serverID, state.Snapshot.Network.Ports, createdAt)...)
 	return alerts
+}
+
+func newEventAlert(serverID string, event domain.AgentEvent, createdAt time.Time) Alert {
+	alert := newAlert(serverID, event.Type, event.Severity, event.Subject, event.Message, createdAt)
+	alert.Action = event.Action
+	alert.ExitCode = event.ExitCode
+	return alert
+}
+
+func shouldAlertOnEvent(event domain.AgentEvent) bool {
+	switch event.Type {
+	case "process.down", "process.restart_failed", "process.restart_suppressed":
+		return true
+	default:
+		return event.Severity == "critical"
+	}
 }
 
 type dnsResult struct {

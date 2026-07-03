@@ -71,13 +71,16 @@ type SpeedTest struct {
 }
 
 type ProcessConfig struct {
-	Name           string        `yaml:"name"`
-	Match          string        `yaml:"match"`
-	Service        string        `yaml:"service"`
-	Critical       bool          `yaml:"critical"`
-	Restart        bool          `yaml:"restart"`
-	RestartCommand []string      `yaml:"restart_command"`
-	GracePeriod    time.Duration `yaml:"grace_period"`
+	Name            string        `yaml:"name"`
+	Match           string        `yaml:"match"`
+	Service         string        `yaml:"service"`
+	Critical        bool          `yaml:"critical"`
+	Restart         bool          `yaml:"restart"`
+	RestartCommand  []string      `yaml:"restart_command"`
+	GracePeriod     time.Duration `yaml:"grace_period"`
+	MaxRestarts     int           `yaml:"max_restarts"`
+	RestartWindow   time.Duration `yaml:"restart_window"`
+	RestartCooldown time.Duration `yaml:"restart_cooldown"`
 }
 
 type LogStream struct {
@@ -219,6 +222,15 @@ func (c *Config) applyDefaults() {
 		if c.Processes[i].GracePeriod <= 0 {
 			c.Processes[i].GracePeriod = 5 * time.Second
 		}
+		if c.Processes[i].MaxRestarts == 0 {
+			c.Processes[i].MaxRestarts = 3
+		}
+		if c.Processes[i].RestartWindow == 0 {
+			c.Processes[i].RestartWindow = 5 * time.Minute
+		}
+		if c.Processes[i].RestartCooldown == 0 {
+			c.Processes[i].RestartCooldown = time.Minute
+		}
 	}
 	for i := range c.LogStreams {
 		if c.LogStreams[i].MaxBytes <= 0 {
@@ -251,6 +263,15 @@ func (c Config) Validate() error {
 		}
 		if proc.Restart && len(proc.RestartCommand) == 0 && proc.Service == "" {
 			return fmt.Errorf("process %q enables restart but has no service or restart_command", proc.Name)
+		}
+		if proc.MaxRestarts < 0 {
+			return fmt.Errorf("process %q has negative max_restarts", proc.Name)
+		}
+		if proc.RestartWindow < 0 {
+			return fmt.Errorf("process %q has negative restart_window", proc.Name)
+		}
+		if proc.RestartCooldown < 0 {
+			return fmt.Errorf("process %q has negative restart_cooldown", proc.Name)
 		}
 	}
 	for _, check := range c.Network.PortChecks {
