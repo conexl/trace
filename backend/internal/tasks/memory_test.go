@@ -7,7 +7,7 @@ import (
 
 func TestMemoryStoreTaskLifecycle(t *testing.T) {
 	store := NewMemoryStore()
-	task, err := store.Enqueue(context.Background(), "devbox", "disk-usage")
+	task, err := store.Enqueue(context.Background(), "devbox", "disk-usage", "test-user")
 	if err != nil {
 		t.Fatalf("Enqueue() error = %v", err)
 	}
@@ -29,7 +29,7 @@ func TestMemoryStoreTaskLifecycle(t *testing.T) {
 
 func TestMemoryStoreCompleteRequiresRunning(t *testing.T) {
 	store := NewMemoryStore()
-	task, err := store.Enqueue(context.Background(), "devbox", "disk-usage")
+	task, err := store.Enqueue(context.Background(), "devbox", "disk-usage", "test-user")
 	if err != nil {
 		t.Fatalf("Enqueue() error = %v", err)
 	}

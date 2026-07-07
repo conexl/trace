@@ -23,6 +23,7 @@ type BufferedSink interface {
 	Sink
 	ReadBatch(limit int) ([]collectors.Snapshot, error)
 	Ack(count int) error
+	Count() int
 }
 
 type JSONLBuffer struct {
@@ -137,6 +138,12 @@ func (b *JSONLBuffer) Ack(count int) error {
 		lines = lines[count:]
 	}
 	return b.rewriteLocked(lines)
+}
+
+func (b *JSONLBuffer) Count() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.events
 }
 
 func (b *JSONLBuffer) Close() error {

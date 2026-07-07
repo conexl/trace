@@ -49,16 +49,21 @@ func NewStore(lc fx.Lifecycle, cfg config.Config) (Store, error) {
 	return store, nil
 }
 
-func (s *MongoStore) Enqueue(ctx context.Context, serverID string, taskName string) (Task, error) {
-	return s.EnqueueWithPayload(ctx, serverID, taskName, TaskPayload{})
+func (s *MongoStore) Enqueue(ctx context.Context, serverID string, taskName string, createdBy string) (Task, error) {
+	return s.EnqueueWithPayload(ctx, serverID, taskName, TaskPayload{}, createdBy)
 }
 
-func (s *MongoStore) EnqueueWithPayload(ctx context.Context, serverID string, taskName string, payload TaskPayload) (Task, error) {
+func (s *MongoStore) EnqueueWithPayload(ctx context.Context, serverID string, taskName string, payload TaskPayload, createdBy string) (Task, error) {
 	id, err := newTaskID()
 	if err != nil {
 		return Task{}, err
 	}
-	task := Task{ID: id, ServerID: serverID, Name: taskName, Payload: payload, Status: StatusPending, CreatedAt: time.Now().UTC()}
+	task := Task{
+		ID: id, ServerID: serverID, Name: taskName, Payload: payload, Status: StatusPending, CreatedAt: time.Now().UTC(),
+		CreatedBy: createdBy,
+		MaxRetries: 3,
+		Timeout:    300,
+	}
 	_, err = s.tasks.InsertOne(ctx, task)
 	return task, err
 }
@@ -113,6 +118,24 @@ func (s *MongoStore) Complete(ctx context.Context, taskID string, result TaskRes
 	return task, nil
 }
 
+func (s *MongoStore) Cancel(ctx context.Context, taskID string, reason string) (Task, error) {
+	now := time.Now().UTC()
+	res := s.tasks.FindOneAndUpdate(
+		ctx,
+		bson.M{"_id": taskID, "status": bson.M{"$in": []Status{StatusPending, StatusRunning}}},
+		bson.M{"$set": bson.M{"status": StatusCanceled, "completed_at": now, "result.error": reason}},
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	)
+	var task Task
+	if err := res.Decode(&task); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return Task{}, ErrNotFound{ID: taskID}
+		}
+		return Task{}, err
+	}
+	return task, nil
+}
+
 func (s *MongoStore) Get(ctx context.Context, taskID string) (Task, error) {
 	var task Task
 	err := s.tasks.FindOne(ctx, bson.M{"_id": taskID}).Decode(&task)
@@ -120,4 +143,18 @@ func (s *MongoStore) Get(ctx context.Context, taskID string) (Task, error) {
 		return Task{}, ErrNotFound{ID: taskID}
 	}
 	return task, err
+}
+
+func (s *MongoStore) List(ctx context.Context, limit int) ([]Task, error) {
+	opts := options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}}).SetLimit(int64(limit))
+	cursor, err := s.tasks.Find(ctx, bson.M{}, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+	var tasks []Task
+	if err := cursor.All(ctx, &tasks); err != nil {
+		return nil, err
+	}
+	return tasks, nil
 }

@@ -13,17 +13,20 @@ import (
 )
 
 type Config struct {
-	Agent      AgentConfig     `yaml:"agent"`
-	Cloud      CloudConfig     `yaml:"cloud"`
-	Network    NetworkConfig   `yaml:"network"`
-	Processes  []ProcessConfig `yaml:"processes"`
-	LogStreams []LogStream     `yaml:"log_streams"`
-	Tasks      []TaskConfig    `yaml:"tasks"`
-	Remote     RemoteConfig    `yaml:"remote"`
-	Update     UpdateConfig    `yaml:"update"`
-	Hardware   HardwareConfig  `yaml:"hardware"`
-	Power      PowerConfig     `yaml:"power"`
-	Buffer     BufferConfig    `yaml:"buffer"`
+	Agent       AgentConfig       `yaml:"agent"`
+	Cloud       CloudConfig       `yaml:"cloud"`
+	Logging     LoggingConfig     `yaml:"logging"`
+	Watchdog    WatchdogConfig    `yaml:"watchdog"`
+	Performance PerformanceConfig `yaml:"performance"`
+	Network     NetworkConfig     `yaml:"network"`
+	Processes   []ProcessConfig   `yaml:"processes"`
+	LogStreams  []LogStream       `yaml:"log_streams"`
+	Tasks       []TaskConfig      `yaml:"tasks"`
+	Remote      RemoteConfig      `yaml:"remote"`
+	Update      UpdateConfig      `yaml:"update"`
+	Hardware    HardwareConfig    `yaml:"hardware"`
+	Power       PowerConfig       `yaml:"power"`
+	Buffer      BufferConfig      `yaml:"buffer"`
 }
 
 type AgentConfig struct {
@@ -31,6 +34,22 @@ type AgentConfig struct {
 	Name     string        `yaml:"name"`
 	Interval time.Duration `yaml:"interval"`
 	Once     bool          `yaml:"once"`
+	Revision int64         `yaml:"revision"`
+	LastLoaded time.Time   `yaml:"-"`
+}
+
+type LoggingConfig struct {
+	Level string `yaml:"level"`
+}
+
+type WatchdogConfig struct {
+	PollingSeconds int `yaml:"polling_seconds"`
+	TimeoutSeconds int `yaml:"timeout_seconds"`
+}
+
+type PerformanceConfig struct {
+	Mode     string `yaml:"mode"`
+	FanCurve string `yaml:"fan_curve"`
 }
 
 type CloudConfig struct {
@@ -56,8 +75,10 @@ type NetworkConfig struct {
 }
 
 type DNSCheck struct {
-	Name   string `yaml:"name"`
-	Domain string `yaml:"domain"`
+	Name     string `yaml:"name"`
+	Domain   string `yaml:"domain"`
+	Group    string `yaml:"group,omitempty"`
+	Critical bool   `yaml:"critical,omitempty"`
 }
 
 type PortCheck struct {
@@ -85,6 +106,8 @@ type ProcessConfig struct {
 	MaxRestarts     int           `yaml:"max_restarts"`
 	RestartWindow   time.Duration `yaml:"restart_window"`
 	RestartCooldown time.Duration `yaml:"restart_cooldown"`
+	CPUThreshold    int           `yaml:"cpu_threshold"`
+	MemoryThreshold int           `yaml:"memory_threshold"`
 }
 
 type LogStream struct {
@@ -99,6 +122,7 @@ type TaskConfig struct {
 	Timeout        time.Duration     `yaml:"timeout"`
 	Description    string            `yaml:"description"`
 	WorkingDir     string            `yaml:"working_dir"`
+	User           string            `yaml:"user,omitempty"`
 	Env            map[string]string `yaml:"env"`
 	MaxOutputBytes int64             `yaml:"max_output_bytes"`
 }
@@ -111,6 +135,7 @@ type RemoteConfig struct {
 }
 
 type UpdateConfig struct {
+	Policy           string `yaml:"policy"`
 	URL              string `yaml:"url"`
 	SHA256           string `yaml:"sha256"`
 	SignatureURL     string `yaml:"signature_url"`
@@ -122,7 +147,9 @@ type HardwareConfig struct {
 }
 
 type PowerConfig struct {
-	PreventSleep bool `yaml:"prevent_sleep"`
+	PreventSleep bool   `yaml:"prevent_sleep"`
+	SleepAt      string `yaml:"sleep_at,omitempty"`
+	WakeAt       string `yaml:"wake_at,omitempty"`
 }
 
 type BufferConfig struct {
@@ -177,6 +204,7 @@ func Load(path string) (Config, error) {
 		return Config{}, fmt.Errorf("parse config: %w", err)
 	}
 	cfg.applyDefaults()
+	cfg.Agent.LastLoaded = time.Now()
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}

@@ -1,6 +1,7 @@
 # Go build outputs
 /agent/agent
 /agent/homelytics-agent
+/backend/backend
 
 # Runtime buffers and logs
 /agent/*.jsonl
@@ -11,3 +12,9 @@
 /agent/certs/
 *.pem
 *.key
+
+# Local tooling artifacts and docs
+.claude/
+graphify-out/
+CLAUDE.md
+*.pdf

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -38,8 +39,67 @@ func New() *Updater {
 	return &Updater{client: &http.Client{Timeout: 30 * time.Second}}
 }
 
+func NewWithTLS(tlsConfig *tls.Config) *Updater {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if tlsConfig != nil {
+		transport.TLSClientConfig = tlsConfig
+	}
+	return &Updater{client: &http.Client{Timeout: 30 * time.Second, Transport: transport}}
+}
+
+func CurrentExecutableSHA256() (string, error) {
+	path, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("resolve executable: %w", err)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("open executable: %w", err)
+	}
+	defer f.Close()
+	hash := sha256.New()
+	if _, err := io.Copy(hash, f); err != nil {
+		return "", fmt.Errorf("hash executable: %w", err)
+	}
+	return hex.EncodeToString(hash.Sum(nil)), nil
+}
+
 func (u *Updater) Apply(ctx context.Context, url string, expectedSHA256 string, target string) (Result, error) {
 	return u.ApplyOptions(ctx, Options{URL: url, ExpectedSHA256: expectedSHA256}, target)
+}
+
+// CheckOptions downloads the update to a temporary file, verifies SHA-256 and
+// optional Ed25519 signature, then discards the file. It never replaces the
+// running binary. Use it for policy="check".
+func (u *Updater) CheckOptions(ctx context.Context, opts Options) (Result, error) {
+	if strings.TrimSpace(opts.URL) == "" {
+		return Result{}, fmt.Errorf("update url is empty")
+	}
+	tmp, err := os.CreateTemp("", ".homelytics-update-check-*")
+	if err != nil {
+		return Result{}, err
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+
+	bytesWritten, digest, err := u.download(ctx, opts.URL, tmp)
+	closeErr := tmp.Close()
+	if err != nil {
+		return Result{}, err
+	}
+	if closeErr != nil {
+		return Result{}, closeErr
+	}
+	actual := hex.EncodeToString(digest)
+	if opts.ExpectedSHA256 != "" && !strings.EqualFold(opts.ExpectedSHA256, actual) {
+		return Result{}, fmt.Errorf("sha256 mismatch: expected %s, got %s", opts.ExpectedSHA256, actual)
+	}
+
+	signatureVerified, err := u.verifySignature(ctx, opts, tmpPath)
+	if err != nil {
+		return Result{}, err
+	}
+	return Result{Bytes: bytesWritten, SHA256: actual, SignatureVerified: signatureVerified, Updated: false}, nil
 }
 
 func (u *Updater) ApplyOptions(ctx context.Context, opts Options, target string) (Result, error) {

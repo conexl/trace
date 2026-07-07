@@ -11,7 +11,16 @@ type Snapshot struct {
 	Processes []ProcessSnapshot `json:"processes"`
 	Logs      []LogChunk        `json:"logs"`
 	Events    []Event           `json:"events"`
+	AppliedConfigRevision int64 `json:"applied_config_revision"`
+	AvailableServices []string `json:"available_services,omitempty"`
+	Health    AgentHealth       `json:"health"`
 	Collected time.Time         `json:"collected_at"`
+}
+
+type AgentHealth struct {
+	ConfigAgeSeconds    float64 `json:"config_age_seconds"`
+	BufferedEventsCount int     `json:"buffered_events_count"`
+	LastUploadSuccess   bool    `json:"last_upload_success"`
 }
 
 type HostSnapshot struct {
@@ -19,6 +28,7 @@ type HostSnapshot struct {
 	OS       string        `json:"os"`
 	Platform string        `json:"platform"`
 	Kernel   string        `json:"kernel"`
+	Version  string        `json:"version,omitempty"`
 	Uptime   time.Duration `json:"uptime"`
 }
 
@@ -73,6 +83,8 @@ type PowerSnapshot struct {
 	ThermalLevel   string `json:"thermal_level,omitempty"`
 	CPUSpeedLimit  string `json:"cpu_speed_limit,omitempty"`
 	SchedulerLimit string `json:"scheduler_limit,omitempty"`
+	Battery        string `json:"battery,omitempty"`
+	PreventSleep   bool   `json:"prevent_sleep"`
 }
 
 type NetworkSnapshot struct {

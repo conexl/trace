@@ -100,7 +100,7 @@ func (r *Runner) Run(ctx context.Context, name string) (Result, error) {
 	cmd := exec.CommandContext(runCtx, task.Command[0], task.Command[1:]...)
 	cmd.Dir = task.WorkingDir
 	cmd.Env = sandboxEnv(task.Env)
-	applyProcessSandbox(cmd)
+	applyProcessSandbox(cmd, task.User)
 	stdout := newLimitBuffer(task.MaxOutputBytes)
 	stderr := newLimitBuffer(task.MaxOutputBytes)
 	cmd.Stdout = stdout

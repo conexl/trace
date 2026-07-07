@@ -1,24 +1,43 @@
 import * as React from 'react';
 import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Activity, ArrowUpRight, Cpu, Globe, HardDrive, MemoryStick, Server, Settings } from 'lucide-react';
+import { Activity, ArrowUpRight, Cpu, Globe, HardDrive, MemoryStick, Server, Settings, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { useServer } from '@/hooks/useServer';
+import { useToast } from '@/components/ToastProvider';
 import { BackLink } from '@/components/BackLink';
 import { Card } from '@/components/ui/Card';
 import { UptimeDot } from '@/components/UptimeDot';
 import { MetricChart } from '@/components/MetricChart';
 import { ServicesPanel } from '@/components/ServicesPanel';
 import { LogsDrawer } from '@/components/LogsDrawer';
+import { IncidentDrawer } from '@/components/IncidentDrawer';
 import { PolicyModal, type ServicePolicy } from '@/components/PolicyModal';
 import { AgentSettingsModal, type AgentConfig } from '@/components/AgentSettingsModal';
 import { FaultToleranceOverlay } from '@/components/FaultToleranceOverlay';
 import { DnsManagementDrawer, statusOf } from '@/components/DnsManagementDrawer';
 import { DEMO_STATE, generateDemoHistory, type HistoryPoint } from '@/lib/demo';
-import type { ServerState, ProcessSnapshot } from '@/lib/types';
+import { getServerConfig, listIncidents, subscribeToEvents, updateServerConfig } from '@/lib/api';
+import type { ServerState, ProcessSnapshot, AgentDesiredConfig, Incident } from '@/lib/types';
 import { cn, formatBytes, formatDuration } from '@/lib/utils';
 
 const MAX_HISTORY = 60;
+
+const emptyDesiredConfig = (): AgentDesiredConfig => ({
+  agent: { name: '', interval: 60_000_000_000 },
+  logging: { level: 'INFO' },
+  watchdog: { polling_seconds: 10, timeout_seconds: 30 },
+  performance: { mode: 'balanced', fan_curve: 'auto' },
+  network: { public_ip_url: '', dns_checks: [], port_checks: [], speed_tests: [] },
+  log_streams: [],
+  processes: [],
+  remote: { tasks_enabled: true, shell_enabled: false, audit_path: '', poll_every: 30_000_000_000 },
+  update: { policy: 'check', url: '', sha256: '', signature_url: '', ed25519_public_key: '' },
+  hardware: { smart_devices: [] },
+  power: { prevent_sleep: false },
+  buffer: { path: '', max_events: 1000, mirror_to_stdout: false },
+  revision: 0,
+});
 
 const fadeInUp = {
   initial: { opacity: 0, y: 16 },
@@ -28,7 +47,7 @@ const fadeInUp = {
 export function ServerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { isAuthenticated } = useAuth();
-  const { data: liveData, loading, connected, reconnectIn } = useServer(id);
+  const { data: liveData, loading, error, connected, reconnectIn } = useServer(id);
   const isDemo = !isAuthenticated;
   const data = isDemo ? DEMO_STATE : liveData;
   const [history, setHistory] = React.useState<HistoryPoint[]>(() =>
@@ -56,6 +75,51 @@ export function ServerDetailPage() {
     fanCurve: 'auto',
     sleepSchedule: { enabled: false, sleepAt: '23:00', wakeAt: '07:00' },
   }));
+  const [desiredConfig, setDesiredConfig] = React.useState<AgentDesiredConfig | null>(null);
+  const [incidents, setIncidents] = React.useState<Incident[]>([]);
+  const [selectedIncident, setSelectedIncident] = React.useState<Incident | null>(null);
+  const incidentDrawerOpen = selectedIncident !== null;
+
+  React.useEffect(() => {
+    if (!id || isDemo) return;
+    let canceled = false;
+    getServerConfig(id)
+      .then((cfg) => {
+        if (!canceled) setDesiredConfig(cfg);
+      })
+      .catch(() => {
+        // Config may not exist yet; ignore.
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [id, isDemo]);
+
+  React.useEffect(() => {
+    if (!id || isDemo) return;
+    let canceled = false;
+    const fetchIncidents = () => {
+      listIncidents(id, 10)
+        .then((res) => {
+          if (!canceled) setIncidents(res.incidents);
+        })
+        .catch(() => {});
+    };
+    fetchIncidents();
+    const interval = setInterval(fetchIncidents, 10000);
+    const unsubscribe = subscribeToEvents((event) => {
+      if (typeof event?.type !== 'string' || !event.type.startsWith('incident.')) return;
+      const incident = event.data as Incident | undefined;
+      if (!incident?.server_id || incident.server_id === id) {
+        fetchIncidents();
+      }
+    });
+    return () => {
+      canceled = true;
+      clearInterval(interval);
+      unsubscribe();
+    };
+  }, [id, isDemo]);
 
   React.useEffect(() => {
     if (!data || isDemo) return;
@@ -116,22 +180,75 @@ export function ServerDetailPage() {
     ];
   }, [data, localServices, hiddenServices]);
 
-  const handleAddService = (name: string) => {
+  const handleAddService = async (name: string) => {
     setLocalServices((prev) => (prev.includes(name) ? prev : [...prev, name]));
     setHiddenServices((prev) => {
       const next = new Set(prev);
       next.delete(name);
       return next;
     });
+
+    if (!isDemo && id) {
+      const exists = (desiredConfig?.processes ?? []).some((p) => p.name === name);
+      if (!exists) {
+        const nextConfig: AgentDesiredConfig = {
+          ...(desiredConfig ?? emptyDesiredConfig()),
+          processes: [
+            ...(desiredConfig?.processes ?? []),
+            {
+              name,
+              match: name,
+              service: '',
+              critical: false,
+              restart: false,
+              remote_control: false,
+              restart_command: [],
+              grace_period: 0,
+              max_restarts: 3,
+              restart_window: 0,
+              restart_cooldown: 0,
+              cpu_threshold: 80,
+              memory_threshold: 80,
+            },
+          ],
+          updated_at: new Date().toISOString(),
+        };
+        try {
+          const saved = await updateServerConfig(id, nextConfig);
+          setDesiredConfig(saved);
+          success(`Service ${name} added to watchdog`);
+        } catch (err) {
+          showError(err instanceof Error ? err.message : 'Failed to add service');
+        }
+      }
+    }
   };
 
-  const handleRemoveService = (name: string) => {
+  const handleRemoveService = async (name: string) => {
     setLocalServices((prev) => prev.filter((n) => n !== name));
     setHiddenServices((prev) => {
       const next = new Set(prev);
       next.add(name);
       return next;
     });
+
+    if (!isDemo && id) {
+      const exists = (desiredConfig?.processes ?? []).some((p) => p.name === name);
+      if (exists) {
+        const nextConfig: AgentDesiredConfig = {
+          ...(desiredConfig ?? emptyDesiredConfig()),
+          processes: (desiredConfig?.processes ?? []).filter((p) => p.name !== name),
+          updated_at: new Date().toISOString(),
+        };
+        try {
+          const saved = await updateServerConfig(id, nextConfig);
+          setDesiredConfig(saved);
+          success(`Service ${name} removed from watchdog`);
+        } catch (err) {
+          showError(err instanceof Error ? err.message : 'Failed to remove service');
+        }
+      }
+    }
   };
 
   const handleViewLogs = (name: string) => {
@@ -142,9 +259,51 @@ export function ServerDetailPage() {
     setPolicyService(name);
   };
 
-  const handleSavePolicy = (policy: ServicePolicy) => {
+  const { success, error: showError } = useToast();
+
+  const handleSavePolicy = async (policy: ServicePolicy) => {
     if (!policyService) return;
     setServicePolicies((prev) => ({ ...prev, [policyService]: policy }));
+
+    if (!isDemo && id) {
+      const existing = (desiredConfig?.processes ?? []).find((p) => p.name === policyService);
+      const proc = data?.snapshot.processes.find((p) => p.name === policyService);
+      const nextProcess = {
+        name: policyService,
+        match: existing?.match ?? proc?.match ?? policyService,
+        service: existing?.service ?? proc?.service ?? '',
+        critical: policy.pin,
+        restart: policy.autoRestart,
+        remote_control: existing?.remote_control ?? proc?.remote_control ?? false,
+        restart_command: existing?.restart_command ?? [],
+        grace_period: existing?.grace_period ?? 0,
+        max_restarts: existing?.max_restarts ?? 3,
+        restart_window: existing?.restart_window ?? 0,
+        restart_cooldown: existing?.restart_cooldown ?? 0,
+        cpu_threshold: policy.cpuThreshold,
+        memory_threshold: policy.memoryThreshold,
+      };
+
+      const nextProcesses = existing
+        ? (desiredConfig?.processes ?? []).map((p) => (p.name === policyService ? nextProcess : p))
+        : [...(desiredConfig?.processes ?? []), nextProcess];
+
+      const nextConfig: AgentDesiredConfig = {
+        ...(desiredConfig ?? emptyDesiredConfig()),
+        agent: { name: data?.snapshot.agent_name ?? '', interval: 60_000_000_000 },
+        processes: nextProcesses,
+        updated_at: new Date().toISOString(),
+      };
+
+      try {
+        const saved = await updateServerConfig(id, nextConfig);
+        setDesiredConfig(saved);
+        success('Service policy saved');
+      } catch (err) {
+        showError(err instanceof Error ? err.message : 'Failed to save policy');
+      }
+    }
+
     setPolicyService(null);
   };
 
@@ -168,7 +327,7 @@ export function ServerDetailPage() {
   }
 
   return (
-    <FaultToleranceOverlay connected={isDemo ? true : connected} reconnectIn={isDemo ? 0 : reconnectIn}>
+    <FaultToleranceOverlay connected={isDemo ? true : connected} reconnectIn={isDemo ? 0 : reconnectIn} error={error}>
       <main className="flex flex-1 flex-col px-6 py-6 min-h-0">
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -190,6 +349,18 @@ export function ServerDetailPage() {
             >
               <Settings className="h-3.5 w-3.5" />
             </motion.button>
+            {incidents.length > 0 && (
+              <motion.button
+                onClick={() => setSelectedIncident(incidents[0])}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.96 }}
+                className="ml-1 flex h-7 items-center justify-center gap-1.5 rounded-md border border-red-400/30 bg-red-400/10 px-2 text-xs text-red-400 transition-colors hover:border-red-400 hover:bg-red-400/20"
+                title="Active incident"
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                <span>{incidents.length}</span>
+              </motion.button>
+            )}
           </div>
 
           {isDemo && (
@@ -216,7 +387,7 @@ export function ServerDetailPage() {
             onViewLogs={handleViewLogs}
             onPolicyChange={handleEditPolicy}
           />
-          <NetworkBlock data={data} />
+          <NetworkBlock data={data} isDemo={isDemo} />
         </div>
       </main>
 
@@ -242,8 +413,21 @@ export function ServerDetailPage() {
       <AgentSettingsModal
         open={agentSettingsOpen}
         onOpenChange={setAgentSettingsOpen}
+        serverId={id ?? ''}
+        isDemo={isDemo}
         config={agentConfig}
         onSave={setAgentConfig}
+      />
+
+      <IncidentDrawer
+        open={incidentDrawerOpen}
+        onOpenChange={(open) => !open && setSelectedIncident(null)}
+        incident={selectedIncident}
+        onActionExecuted={() => {
+          if (id) {
+            listIncidents(id, 10).then((res) => setIncidents(res.incidents)).catch(() => {});
+          }
+        }}
       />
     </FaultToleranceOverlay>
   );
@@ -431,7 +615,7 @@ function ServicesBlock({
       style={{ willChange: 'transform, width, height' }}
       className={cn(
         'col-span-12 lg:col-start-1 h-full min-h-[14rem]',
-        expanded ? 'lg:col-span-12 lg:row-start-2 lg:row-span-2 z-20' : 'lg:col-span-8 lg:row-start-3'
+        'lg:col-span-8 lg:row-start-3'
       )}
     >
       <Card hover={false} className="h-full p-4">
@@ -453,7 +637,7 @@ function ServicesBlock({
   );
 }
 
-function NetworkBlock({ data }: { data: ServerState }) {
+function NetworkBlock({ data, isDemo }: { data: ServerState; isDemo: boolean }) {
   const { network } = data.snapshot;
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const mainIface = network.traffic.find((t) => !t.interface.startsWith('lo')) ?? network.traffic[0];
@@ -559,7 +743,9 @@ function NetworkBlock({ data }: { data: ServerState }) {
       <DnsManagementDrawer
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
+        serverId={data.summary.id}
         dns={network.dns}
+        isDemo={isDemo}
       />
     </>
   );

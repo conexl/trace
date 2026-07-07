@@ -23,6 +23,7 @@ type ServiceManager interface {
 	Start(ctx context.Context, name string) error
 	Stop(ctx context.Context, name string) error
 	Restart(ctx context.Context, name string) error
+	ListServices(ctx context.Context) ([]string, error)
 }
 
 func NewServiceManager() ServiceManager {
@@ -79,6 +80,23 @@ func (systemdManager) Restart(ctx context.Context, name string) error {
 	return runServiceCommand(ctx, "systemctl", "restart", name)
 }
 
+func (systemdManager) ListServices(ctx context.Context) ([]string, error) {
+	cmd := exec.CommandContext(ctx, "systemctl", "list-unit-files", "--type=service", "--no-legend", "--no-pager")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, err
+	}
+	lines := splitNonEmptyLines(string(out))
+	services := make([]string, 0, len(lines))
+	for _, line := range lines {
+		parts := strings.Fields(line)
+		if len(parts) > 0 {
+			services = append(services, parts[0])
+		}
+	}
+	return services, nil
+}
+
 type launchdManager struct{}
 
 func (launchdManager) Status(ctx context.Context, name string) (ServiceStatus, error) {
@@ -103,6 +121,26 @@ func (launchdManager) Restart(ctx context.Context, name string) error {
 	return runServiceCommand(ctx, "launchctl", "kickstart", "-k", name)
 }
 
+func (launchdManager) ListServices(ctx context.Context) ([]string, error) {
+	cmd := exec.CommandContext(ctx, "launchctl", "list")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, err
+	}
+	lines := splitNonEmptyLines(string(out))
+	services := make([]string, 0, len(lines))
+	for i, line := range lines {
+		if i == 0 { // Skip header
+			continue
+		}
+		parts := strings.Fields(line)
+		if len(parts) >= 3 {
+			services = append(services, parts[2])
+		}
+	}
+	return services, nil
+}
+
 type noopServiceManager struct{}
 
 func (noopServiceManager) Status(context.Context, string) (ServiceStatus, error) {
@@ -119,6 +157,10 @@ func (noopServiceManager) Stop(context.Context, string) error {
 
 func (noopServiceManager) Restart(context.Context, string) error {
 	return errors.New("no supported service manager found")
+}
+
+func (noopServiceManager) ListServices(context.Context) ([]string, error) {
+	return nil, errors.New("no supported service manager found")
 }
 
 func runServiceCommand(ctx context.Context, name string, args ...string) error {

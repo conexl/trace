@@ -3,16 +3,18 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { KeyRound, LogIn } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { login } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 
 export function LoginPage() {
-  const { login, isAuthenticated } = useAuth();
+  const { login: authLogin, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [error, setError] = React.useState('');
+  const [isLoading, setIsLoading] = React.useState(false);
 
   React.useEffect(() => {
     if (isAuthenticated) {
@@ -21,15 +23,22 @@ export function LoginPage() {
     }
   }, [isAuthenticated, navigate, location.state]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!email.trim() || !password.trim()) {
       setError('Please fill in all fields.');
       return;
     }
-    // Demo login: any non-empty credentials create a session token.
-    login(`admin-${email.trim()}`);
+    setIsLoading(true);
+    try {
+      await login(email.trim(), password);
+      await authLogin();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -78,9 +87,9 @@ export function LoginPage() {
               </div>
             )}
 
-            <Button variant="neon" size="md" type="submit" className="w-full gap-2">
+            <Button variant="neon" size="md" type="submit" className="w-full gap-2" disabled={isLoading}>
               <LogIn className="h-4 w-4" />
-              Sign in
+              {isLoading ? 'Signing in…' : 'Sign in'}
             </Button>
           </form>
 

@@ -10,7 +10,6 @@ import (
 	"backend/internal/config"
 
 	redis "github.com/redis/go-redis/v9"
-	"go.uber.org/fx"
 )
 
 type RedisStore struct {
@@ -18,30 +17,11 @@ type RedisStore struct {
 	client *redis.Client
 }
 
-func NewStore(lc fx.Lifecycle, cfg config.Config) (Store, error) {
-	if cfg.Redis.Addr == "" {
-		return NewMemoryStore(), nil
+func NewStore(cfg config.Config, client *redis.Client) Store {
+	if client != nil {
+		return &RedisStore{cfg: cfg, client: client}
 	}
-	client := redis.NewClient(&redis.Options{
-		Addr:         cfg.Redis.Addr,
-		Password:     cfg.Redis.Password,
-		DB:           cfg.Redis.DB,
-		DialTimeout:  cfg.Redis.ConnectTimeout,
-		ReadTimeout:  cfg.Redis.ConnectTimeout,
-		WriteTimeout: cfg.Redis.ConnectTimeout,
-	})
-	store := &RedisStore{cfg: cfg, client: client}
-	lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
-			pingCtx, cancel := context.WithTimeout(ctx, cfg.Redis.ConnectTimeout)
-			defer cancel()
-			return client.Ping(pingCtx).Err()
-		},
-		OnStop: func(ctx context.Context) error {
-			return client.Close()
-		},
-	})
-	return store, nil
+	return NewMemoryStore()
 }
 
 func (s *RedisStore) Touch(ctx context.Context, serverID string, seenAt time.Time) error {

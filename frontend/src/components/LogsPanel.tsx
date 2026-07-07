@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { ScrollText, X } from 'lucide-react';
+import { ScrollText, X, Search, Pause, Play, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { LogChunk } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -12,6 +12,8 @@ interface LogsPanelProps {
 
 export function LogsPanel({ logs, activeStream, onStreamChange }: LogsPanelProps) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const [search, setSearch] = React.useState('');
+  const [isPaused, setIsPaused] = React.useState(false);
   const streams = React.useMemo(() => {
     const names = new Set<string>();
     logs.forEach((chunk) => names.add(chunk.name));
@@ -28,23 +30,66 @@ export function LogsPanel({ logs, activeStream, onStreamChange }: LogsPanelProps
         .filter((line) => line.trim().length > 0)
         .map((line) => ({ line, name: chunk.name, offset: chunk.offset }))
     )
+    .filter((l) => !search || l.line.toLowerCase().includes(search.toLowerCase()))
     .slice(-200);
 
   React.useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current && !isPaused) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [lines.length, current]);
+  }, [lines.length, current, isPaused]);
+
+  const handleDownload = () => {
+    const content = lines.map(l => l.line).join('\n');
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${current || 'logs'}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="flex h-full flex-col">
       <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-active">
-          <ScrollText className="h-4 w-4 text-accent" />
-          <span className="text-sm font-medium tracking-tight">Log tail</span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-active">
+            <ScrollText className="h-4 w-4 text-accent" />
+            <span className="text-sm font-medium tracking-tight">Log tail</span>
+          </div>
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted" />
+            <input
+              type="text"
+              placeholder="Search logs..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-7 w-40 rounded-md border border-border bg-canvas pl-7 pr-2 text-[10px] text-active focus:border-accent focus:outline-none"
+            />
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-          <AnimatePresence>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsPaused(!isPaused)}
+            className={cn(
+              "flex h-7 w-7 items-center justify-center rounded-md border border-border transition-colors",
+              isPaused ? "bg-amber-500/10 text-amber-500 border-amber-500/20" : "text-muted hover:text-active"
+            )}
+            title={isPaused ? "Resume autoscroll" : "Pause autoscroll"}
+          >
+            {isPaused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+          </button>
+          <button
+            onClick={handleDownload}
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted transition-colors hover:text-active"
+            title="Download logs"
+          >
+            <Download className="h-3.5 w-3.5" />
+          </button>
+          <div className="h-4 w-px bg-border mx-1" />
+          <div className="flex items-center gap-1.5 overflow-x-auto">
+            <AnimatePresence>
             {streams.map((name) => (
               <motion.button
                 key={name}
@@ -72,7 +117,8 @@ export function LogsPanel({ logs, activeStream, onStreamChange }: LogsPanelProps
             >
               <X className="h-3 w-3" />
             </button>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

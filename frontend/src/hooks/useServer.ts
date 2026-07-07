@@ -5,12 +5,12 @@ import type { ServerState } from '@/lib/types';
 import { usePolling } from './usePolling';
 
 export function useServer(id: string | undefined, enabled = true) {
-  const { isAuthenticated, token } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   const fetcher = useCallback(async () => {
     if (!id) throw new Error('server id is required');
     return getServer(id);
-  }, [id, token]);
+  }, [id]);
 
   return usePolling<ServerState>({
     fetcher,

@@ -46,4 +46,6 @@ Static output is written to `dist/`.
 - Server list/detail, alerts and pairing are wired to the backend `/v1` API.
 - Service start/stop/restart uses `POST /v1/servers/:id/service-actions`.
 - Live service actions are enabled only when the agent reports the process with `remote_control: true`.
-- Add-service discovery, watchdog policy editing, DNS record management and agent settings are UI-ready but still need backend/agent persistence APIs.
+- Watchdog policy editing, add/remove service, DNS record management and agent settings are persisted through `GET/POST /v1/servers/:id/config` and pushed to agents on their next config poll.
+- DNS recheck queues a `dns-recheck` server task for the agent.
+- Add-service discovery from the agent (listing available systemd services) is not implemented yet; in live mode the user can type a process/service name manually.

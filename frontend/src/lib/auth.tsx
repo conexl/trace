@@ -1,44 +1,53 @@
 import * as React from 'react';
-import { setAdminToken } from './api';
+import { getMe, logout as apiLogout } from './api';
 
 interface AuthContextValue {
-  token: string;
+  user: { email: string; role: string } | null;
   isAuthenticated: boolean;
-  login: (token: string) => void;
+  loading: boolean;
+  login: () => void;
   logout: () => void;
 }
 
 const AuthContext = React.createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = React.useState(() => {
-    return typeof window !== 'undefined' ? localStorage.getItem('homelytics-token') ?? '' : '';
-  });
+  const [user, setUser] = React.useState<{ email: string; role: string } | null>(null);
+  const [loading, setLoading] = React.useState(true);
 
-  React.useEffect(() => {
-    setAdminToken(token);
-  }, [token]);
-
-  const login = React.useCallback((newToken: string) => {
-    localStorage.setItem('homelytics-token', newToken);
-    setToken(newToken);
-    setAdminToken(newToken);
+  const checkAuth = React.useCallback(async () => {
+    try {
+      const data = await getMe();
+      setUser(data);
+    } catch {
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const logout = React.useCallback(() => {
-    localStorage.removeItem('homelytics-token');
-    setToken('');
-    setAdminToken('');
+  React.useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  const login = React.useCallback(async () => {
+    await checkAuth();
+  }, [checkAuth]);
+
+  const logout = React.useCallback(async () => {
+    await apiLogout();
+    setUser(null);
   }, []);
 
   const value = React.useMemo(
     () => ({
-      token,
-      isAuthenticated: token.length > 0,
+      user,
+      isAuthenticated: !!user,
+      loading,
       login,
       logout,
     }),
-    [token, login, logout]
+    [user, loading, login, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

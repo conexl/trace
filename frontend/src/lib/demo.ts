@@ -35,7 +35,10 @@ export const DEMO_STATE: ServerState = {
     memory_used_percent: 45.2,
     process_count: 4,
     event_count: 0,
+    applied_config_revision: 12,
+    desired_config_revision: 12,
   },
+
   snapshot: {
     agent_name: 'demo-server',
     host: {
@@ -99,6 +102,12 @@ export const DEMO_STATE: ServerState = {
       { name: 'system', path: '/var/log/demo.log', data: '2026-07-02T12:00:00 [INFO] agent started\n2026-07-02T12:00:01 [INFO] snapshot uploaded\n2026-07-02T12:00:02 [WARN] high memory usage: 45%\n2026-07-02T12:00:03 [INFO] all processes healthy\n', offset: 0, truncated: false, collected_at: new Date().toISOString() },
     ],
     events: [],
+    applied_config_revision: 12,
+    health: {
+      config_age_seconds: 120,
+      buffered_events_count: 0,
+      last_upload_success: true,
+    },
     collected_at: new Date().toISOString(),
   },
   events: [],

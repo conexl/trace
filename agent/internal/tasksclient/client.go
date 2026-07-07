@@ -32,8 +32,9 @@ type Task struct {
 }
 
 type TaskPayload struct {
-	Service string `json:"service,omitempty"`
-	Action  string `json:"action,omitempty"`
+	Service string   `json:"service,omitempty"`
+	Action  string   `json:"action,omitempty"`
+	Domains []string `json:"domains,omitempty"`
 }
 
 type TaskResult struct {

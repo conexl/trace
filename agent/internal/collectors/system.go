@@ -12,6 +12,8 @@ import (
 
 type SystemCollector struct{}
 
+const AgentVersion = "1.0.0"
+
 func NewSystemCollector() *SystemCollector {
 	return &SystemCollector{}
 }
@@ -52,6 +54,7 @@ func (c *SystemCollector) Collect(ctx context.Context) (HostSnapshot, SystemSnap
 			OS:       hostInfo.OS,
 			Platform: hostInfo.Platform,
 			Kernel:   hostInfo.KernelVersion,
+			Version:  AgentVersion,
 			Uptime:   time.Duration(hostInfo.Uptime) * time.Second,
 		}, SystemSnapshot{
 			CPUPercent: totalCPU,

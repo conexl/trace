@@ -32,7 +32,7 @@ func TestProcessCollectorRestartsCriticalServiceOnceThenSuppresses(t *testing.T)
 	if manager.restarts != 1 {
 		t.Fatalf("restarts = %d", manager.restarts)
 	}
-	if len(events) != 2 || events[0].Type != "process.down" || events[1].Type != "process.restarted" {
+	if len(events) != 3 || events[0].Type != "process.down" || events[1].Type != "process.restart_attempted" || events[2].Type != "process.restarted" {
 		t.Fatalf("events = %#v", events)
 	}
 	if events[0].ExitCode != 7 || events[1].ExitCode != 7 {
@@ -56,11 +56,11 @@ func TestProcessCollectorReportsRestartFailure(t *testing.T) {
 	cfg := []config.ProcessConfig{{Name: "api", Service: "api", Critical: true, Restart: true, GracePeriod: time.Second, MaxRestarts: 3, RestartWindow: time.Minute, RestartCooldown: time.Minute}}
 
 	_, events := collector.Collect(context.Background(), cfg)
-	if len(events) != 2 || events[1].Type != "process.restart_failed" || events[1].Severity != "critical" {
+	if len(events) != 3 || events[2].Type != "process.restart_failed" || events[2].Severity != "critical" {
 		t.Fatalf("events = %#v", events)
 	}
-	if events[1].Action != "service restart api" {
-		t.Fatalf("action = %q", events[1].Action)
+	if events[2].Action != "service restart api" {
+		t.Fatalf("action = %q", events[2].Action)
 	}
 }
 
@@ -89,4 +89,8 @@ func (m *fakeServiceManager) Stop(context.Context, string) error {
 func (m *fakeServiceManager) Restart(context.Context, string) error {
 	m.restarts++
 	return m.restartErr
+}
+
+func (m *fakeServiceManager) ListServices(context.Context) ([]string, error) {
+	return []string{"nginx", "api"}, nil
 }

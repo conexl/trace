@@ -20,6 +20,7 @@ type MongoStore struct {
 	cfg     config.Config
 	client  *mongo.Client
 	servers *mongo.Collection
+	metrics *mongo.Collection
 }
 
 func NewStore(lc fx.Lifecycle, cfg config.Config) (Store, error) {
@@ -32,7 +33,7 @@ func NewStore(lc fx.Lifecycle, cfg config.Config) (Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	store := &MongoStore{cfg: cfg, client: client, servers: client.Database(cfg.Mongo.Database).Collection("servers")}
+	store := &MongoStore{cfg: cfg, client: client, servers: client.Database(cfg.Mongo.Database).Collection("servers"), metrics: client.Database(cfg.Mongo.Database).Collection("metrics")}
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
 			pingCtx, cancel := context.WithTimeout(ctx, cfg.Mongo.ConnectTimeout)
@@ -43,6 +44,13 @@ func NewStore(lc fx.Lifecycle, cfg config.Config) (Store, error) {
 			_, err := store.servers.Indexes().CreateOne(pingCtx, mongo.IndexModel{
 				Keys:    bson.D{{Key: "summary.id", Value: 1}},
 				Options: options.Index().SetUnique(true),
+			})
+			if err != nil {
+				return err
+			}
+			_, err = store.metrics.Indexes().CreateMany(pingCtx, []mongo.IndexModel{
+				{Keys: bson.D{{Key: "server_id", Value: 1}, {Key: "timestamp", Value: 1}}},
+				{Keys: bson.D{{Key: "timestamp", Value: 1}}, Options: options.Index().SetExpireAfterSeconds(7 * 24 * 3600)},
 			})
 			return err
 		},
@@ -98,4 +106,32 @@ func (s *MongoStore) GetServer(ctx context.Context, id string, now time.Time) (d
 	}
 	state.Summary.Status = statusFor(state.Summary.LastSeen, now, s.cfg.State.OfflineAfter)
 	return state, nil
+}
+
+func (s *MongoStore) SaveMetric(ctx context.Context, metric domain.Metric) error {
+	_, err := s.metrics.InsertOne(ctx, metric)
+	return err
+}
+
+func (s *MongoStore) GetMetrics(ctx context.Context, serverID string, from, to time.Time) ([]domain.Metric, error) {
+	filter := bson.M{
+		"server_id": serverID,
+		"timestamp": bson.M{"$gte": from, "$lte": to},
+	}
+	opts := options.Find().SetSort(bson.D{{Key: "timestamp", Value: 1}})
+	cursor, err := s.metrics.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+	var metrics []domain.Metric
+	if err := cursor.All(ctx, &metrics); err != nil {
+		return nil, err
+	}
+	return metrics, nil
+}
+
+func (s *MongoStore) UpdateDesiredRevision(ctx context.Context, serverID string, revision int64) error {
+	_, err := s.servers.UpdateOne(ctx, bson.M{"summary.id": serverID}, bson.M{"$set": bson.M{"summary.desired_config_revision": revision}})
+	return err
 }

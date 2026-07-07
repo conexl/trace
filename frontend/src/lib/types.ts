@@ -3,6 +3,7 @@ export interface HostSnapshot {
   os: string;
   platform: string;
   kernel: string;
+  version?: string;
   uptime: number; // nanoseconds in Go, but JSON encodes duration as number of nanoseconds
 }
 
@@ -133,7 +134,25 @@ export interface AgentSnapshot {
   processes: ProcessSnapshot[];
   logs: LogChunk[];
   events: AgentEvent[];
+  applied_config_revision: number;
+  available_services?: string[];
+  health: AgentHealth;
   collected_at: string;
+}
+
+export interface AgentHealth {
+  config_age_seconds: number;
+  buffered_events_count: number;
+  last_upload_success: boolean;
+}
+
+export interface Metric {
+  server_id: string;
+  timestamp: string;
+  cpu: number;
+  memory: number;
+  net_in?: number;
+  net_out?: number;
 }
 
 export interface ServerSummary {
@@ -142,12 +161,15 @@ export interface ServerSummary {
   hostname: string;
   platform: string;
   public_ip: string;
+  version?: string;
   status: 'online' | 'offline' | 'unknown';
   last_seen: string;
   cpu_percent: number;
   memory_used_percent: number;
   process_count: number;
   event_count: number;
+  applied_config_revision: number;
+  desired_config_revision: number;
 }
 
 export interface ServerState {
@@ -158,6 +180,74 @@ export interface ServerState {
 
 export interface ServersResponse {
   servers: ServerSummary[];
+}
+
+export interface AgentDesiredConfig {
+  agent: {
+    name: string;
+    interval: number; // nanoseconds
+  };
+  logging: {
+    level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+  };
+  watchdog: {
+    polling_seconds: number;
+    timeout_seconds: number;
+  };
+  performance: {
+    mode: 'high' | 'balanced' | 'power-save';
+    fan_curve: 'auto' | 'quiet' | 'max';
+  };
+  network: {
+    public_ip_url: string;
+    dns_checks: { name: string; domain: string; group?: string; critical?: boolean }[];
+    port_checks: { name: string; address: string; timeout: number }[];
+    speed_tests: { name: string; url: string; max_bytes: number; timeout: number }[];
+  };
+  processes: {
+    name: string;
+    match: string;
+    service: string;
+    critical: boolean;
+    restart: boolean;
+    remote_control: boolean;
+    restart_command: string[];
+    grace_period: number;
+    max_restarts: number;
+    restart_window: number;
+    restart_cooldown: number;
+    cpu_threshold: number;
+    memory_threshold: number;
+  }[];
+  log_streams: { name: string; path: string; max_bytes: number }[];
+  remote: {
+    tasks_enabled: boolean;
+    shell_enabled: boolean;
+    audit_path: string;
+    poll_every: number;
+  };
+  update: {
+    policy: 'manual' | 'check' | 'auto';
+    url: string;
+    sha256: string;
+    signature_url: string;
+    ed25519_public_key: string;
+  };
+  hardware: {
+    smart_devices: string[];
+  };
+  power: {
+    prevent_sleep: boolean;
+    sleep_at?: string;
+    wake_at?: string;
+  };
+  buffer: {
+    path: string;
+    max_events: number;
+    mirror_to_stdout: boolean;
+  };
+  revision: number;
+  updated_at?: string;
 }
 
 export interface Alert {
@@ -191,11 +281,16 @@ export interface Task {
   payload?: {
     service?: string;
     action?: 'start' | 'stop' | 'restart';
+    domains?: string[];
   };
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'canceled';
   created_at: string;
+  created_by?: string;
   claimed_at?: string;
   completed_at?: string;
+  retries: number;
+  max_retries: number;
+  timeout_seconds?: number;
   result?: {
     exit_code: number;
     stdout: string;
@@ -204,4 +299,64 @@ export interface Task {
     started_at: string;
     error?: string;
   };
+}
+
+export interface AuditLog {
+  id: string;
+  timestamp: string;
+  user_email: string;
+  action: string;
+  target: string;
+  details?: string;
+}
+
+export interface TimelineEvent {
+  id: string;
+  type: 'crash' | 'restart' | 'action' | 'log' | 'resolved';
+  timestamp: string;
+  title: string;
+  message?: string;
+  exit_code?: number;
+  action?: string;
+  actor?: string;
+  result?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface Incident {
+  id: string;
+  server_id: string;
+  service_name: string;
+  status: 'open' | 'investigating' | 'resolved' | 'suppressed';
+  severity: 'critical' | 'warning';
+  title: string;
+  summary: string;
+  timeline: TimelineEvent[];
+  created_at: string;
+  updated_at: string;
+  resolved_at?: string;
+}
+
+export interface IncidentAction {
+  name: string;
+  label: string;
+  description: string;
+  enabled: boolean;
+  coming_soon?: boolean;
+}
+
+export interface IncidentsResponse {
+  incidents: Incident[];
+}
+
+export interface IncidentActionsResponse {
+  actions: IncidentAction[];
+}
+
+export interface IncidentAnalysis {
+  summary: string;
+  root_cause: string;
+  severity: 'critical' | 'warning' | 'info';
+  suggestions: string[];
+  confidence: number;
 }

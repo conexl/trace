@@ -71,7 +71,8 @@ func (c *ProcessCollector) Collect(ctx context.Context, configs []config.Process
 				Timestamp: c.clock(),
 			})
 			if cfg.Restart {
-				events = append(events, c.restart(ctx, cfg, result.LastExitCode))
+				restartEvents := c.restart(ctx, cfg, result.LastExitCode)
+				events = append(events, restartEvents...)
 			}
 		}
 
@@ -81,19 +82,32 @@ func (c *ProcessCollector) Collect(ctx context.Context, configs []config.Process
 	return results, events
 }
 
-func (c *ProcessCollector) restart(ctx context.Context, cfg config.ProcessConfig, exitCode int) Event {
+func (c *ProcessCollector) restart(ctx context.Context, cfg config.ProcessConfig, exitCode int) []Event {
 	now := c.clock()
-	if suppressed, until := c.recordRestartAttempt(cfg, now); suppressed {
-		return Event{
+	events := make([]Event, 0)
+	suppressed, until, reason := c.recordRestartAttempt(cfg, now)
+	if suppressed {
+		events = append(events, Event{
 			Type:      "process.restart_suppressed",
 			Severity:  "critical",
 			Subject:   cfg.Name,
 			Action:    restartAction(cfg),
 			ExitCode:  exitCode,
-			Message:   fmt.Sprintf("restart suppressed until %s", until.Format(time.RFC3339)),
+			Message:   fmt.Sprintf("restart suppressed (%s) until %s", reason, until.Format(time.RFC3339)),
 			Timestamp: now,
-		}
+		})
+		return events
 	}
+
+	events = append(events, Event{
+		Type:      "process.restart_attempted",
+		Severity:  "warning",
+		Subject:   cfg.Name,
+		Action:    restartAction(cfg),
+		ExitCode:  exitCode,
+		Message:   "attempting to restart process",
+		Timestamp: now,
+	})
 
 	restartCtx, cancel := context.WithTimeout(ctx, cfg.GracePeriod+20*time.Second)
 	defer cancel()
@@ -109,7 +123,7 @@ func (c *ProcessCollector) restart(ctx context.Context, cfg config.ProcessConfig
 		err = c.services.Restart(restartCtx, cfg.Service)
 	}
 	if err != nil {
-		return Event{
+		events = append(events, Event{
 			Type:      "process.restart_failed",
 			Severity:  "critical",
 			Subject:   cfg.Name,
@@ -117,26 +131,28 @@ func (c *ProcessCollector) restart(ctx context.Context, cfg config.ProcessConfig
 			ExitCode:  firstNonZero(exitCode, exitCodeFromError(err)),
 			Message:   err.Error(),
 			Timestamp: now,
-		}
+		})
+		return events
 	}
-	return Event{
+	events = append(events, Event{
 		Type:      "process.restarted",
 		Severity:  "warning",
 		Subject:   cfg.Name,
 		Action:    restartAction(cfg),
 		ExitCode:  exitCode,
-		Message:   "restart policy executed",
+		Message:   "restart policy executed successfully",
 		Timestamp: now,
-	}
+	})
+	return events
 }
 
-func (c *ProcessCollector) recordRestartAttempt(cfg config.ProcessConfig, now time.Time) (bool, time.Time) {
+func (c *ProcessCollector) recordRestartAttempt(cfg config.ProcessConfig, now time.Time) (bool, time.Time, string) {
 	key := cfg.Name
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	state := c.watchdog[key]
 	if !state.CooldownUntil.IsZero() && now.Before(state.CooldownUntil) {
-		return true, state.CooldownUntil
+		return true, state.CooldownUntil, "cooldown active"
 	}
 	windowStart := now.Add(-cfg.RestartWindow)
 	attempts := state.Attempts[:0]
@@ -149,12 +165,12 @@ func (c *ProcessCollector) recordRestartAttempt(cfg config.ProcessConfig, now ti
 		state.Attempts = attempts
 		state.CooldownUntil = now.Add(cfg.RestartCooldown)
 		c.watchdog[key] = state
-		return true, state.CooldownUntil
+		return true, state.CooldownUntil, "max restarts hit"
 	}
 	state.Attempts = append(attempts, now)
 	state.CooldownUntil = time.Time{}
 	c.watchdog[key] = state
-	return false, time.Time{}
+	return false, time.Time{}, ""
 }
 
 func restartAction(cfg config.ProcessConfig) string {

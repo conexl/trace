@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -13,6 +15,7 @@ import (
 	"agent/internal/collectors"
 	"agent/internal/commands"
 	"agent/internal/config"
+	"agent/internal/configclient"
 	"agent/internal/logger"
 	"agent/internal/pairing"
 	"agent/internal/services"
@@ -121,8 +124,15 @@ func main() {
 	}
 
 	serviceManager := collectors.NewServiceManager()
+	configClient, err := buildConfigClient(cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "config client error: %v\n", err)
+		os.Exit(1)
+	}
+	updateClient := buildUpdater(cfg)
 	agent := services.NewAgent(
 		cfg,
+		*configPath,
 		collectors.NewSystemCollector(),
 		collectors.NewNetworkCollector(),
 		collectors.NewProcessCollector(serviceManager),
@@ -132,6 +142,8 @@ func main() {
 		buffer,
 		transportClient,
 		taskClient,
+		configClient,
+		updateClient,
 		runner,
 	)
 
@@ -158,6 +170,54 @@ func buildTaskClient(cfg config.Config) (*tasksclient.Client, error) {
 		return nil, nil
 	}
 	return tasksclient.New(cfg.Cloud)
+}
+
+func buildConfigClient(cfg config.Config) (*configclient.Client, error) {
+	if cfg.Cloud.Transport == "none" {
+		return nil, nil
+	}
+	return configclient.New(cfg.Cloud, cfg.Agent.Name)
+}
+
+func buildUpdater(cfg config.Config) *updater.Updater {
+	tlsConfig, err := buildUpdaterTLSConfig(cfg.Cloud.MTLS)
+	if err != nil {
+		slog.Warn("updater tls config failed", "error", err)
+		return updater.New()
+	}
+	if tlsConfig != nil {
+		return updater.NewWithTLS(tlsConfig)
+	}
+	return updater.New()
+}
+
+func buildUpdaterTLSConfig(cfg config.MTLS) (*tls.Config, error) {
+	if cfg.CAFile == "" && cfg.CertFile == "" && cfg.KeyFile == "" {
+		return nil, nil
+	}
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
+	if cfg.CAFile != "" {
+		caPEM, err := os.ReadFile(cfg.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("read mtls ca: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caPEM) {
+			return nil, fmt.Errorf("parse mtls ca: no certificates found")
+		}
+		tlsConfig.RootCAs = pool
+	}
+	if cfg.CertFile != "" || cfg.KeyFile != "" {
+		if cfg.CertFile == "" || cfg.KeyFile == "" {
+			return nil, fmt.Errorf("mtls cert_file and key_file must be set together")
+		}
+		cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("load mtls key pair: %w", err)
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	}
+	return tlsConfig, nil
 }
 
 func writeJSON(value any) {

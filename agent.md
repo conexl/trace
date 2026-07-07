@@ -118,14 +118,30 @@ go run ./cmd/agent -config ./config.example.yaml -self-update
 - Policy `check` отправляет event `update.available` без замены бинарника.
 - Policy `auto` заменяет бинарник и завершает процесс, чтобы supervisor перезапустил agent.
 
-## Частично готово
+## Готово
 
-### Incident MVP actions
+### AI Incident Analyst
 
-- `Restart` готов через backend task `service-action` с payload `{ service, action: "restart" }`.
-- `Disable Watchdog` пока не отдельная agent task. Backend может сделать это через desired config, но у agent нет first-class `disable-watchdog` task.
-- `Run Diagnostics` пока не активен. Плановое имя task: `diagnostics`.
-- `Rollback Config` пока не активен. Agent умеет применять desired config, но не хранит локальную историю config и не делает rollback сам.
+- Backend имеет AI client для OpenAI-совместимых API: `/home/conexl/Code/Trace/backend/internal/ai/client.go`.
+- **DeepSeek используется по умолчанию** (model: `deepseek-chat`).
+- Endpoint `POST /v1/incidents/{id}/analyze` возвращает structured JSON analysis.
+- Frontend показывает AI Analysis block в IncidentDrawer с кнопкой "AI Analyze".
+- Analysis содержит: summary, root_cause, severity, suggestions, confidence.
+- Fallback если AI_API_KEY не настроен: сообщение "Configure AI_API_KEY to enable".
+- Поддержка OpenAI, Anthropic через AI_BASE_URL и AI_MODEL env vars.
+
+### Incident Autopilot
+
+- Backend создает incidents из agent events (`process.down`, `process.restart_failed`, `process.restart_suppressed`).
+- Incident содержит timeline с событиями: crash, restart attempt, action execution.
+- Frontend показывает incident drawer с timeline и actions.
+- MVP actions: `Restart` (через `service-action` task) и `Disable Watchdog` (через desired config).
+- Actions `Run Diagnostics` и `Rollback Config` показываются как "Coming soon".
+- Все actions логируются в audit log.
+- Incident автоматически закрывается при `process.up` event.
+- Actions защищены `requireAdmin` middleware.
+- Backend тесты проходят: `go test ./...`.
+- Frontend билдится: `npm run build`.
 
 ### Remote shell
 
@@ -144,7 +160,7 @@ go run ./cmd/agent -config ./config.example.yaml -self-update
 
 - Agent отправляет watchdog/service events в snapshots.
 - Agent не хранит длинную restart timeline между собственными рестартами.
-- Backend должен владеть incident history и audit timeline.
+- Backend владеет incident history и audit timeline.
 
 ### Platform depth
 

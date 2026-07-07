@@ -60,7 +60,28 @@ func collectPower(root string) PowerSnapshot {
 	if runtime.GOOS == "darwin" {
 		power = mergePower(power, collectDarwinPower(context.Background()))
 	}
+	power.PreventSleep = checkPreventSleep()
 	return power
+}
+
+func checkPreventSleep() bool {
+	if runtime.GOOS == "darwin" {
+		cmd := exec.Command("pmset", "-g", "assertions")
+		out, err := cmd.Output()
+		if err != nil {
+			return false
+		}
+		return strings.Contains(string(out), "PreventUserIdleSystemSleep") || strings.Contains(string(out), "PreventSystemSleep")
+	}
+	if runtime.GOOS == "linux" {
+		cmd := exec.Command("systemd-inhibit", "--list", "--no-pager")
+		out, err := cmd.Output()
+		if err != nil {
+			return false
+		}
+		return strings.Contains(string(out), "sleep")
+	}
+	return false
 }
 
 func collectDarwinPower(ctx context.Context) PowerSnapshot {
@@ -73,6 +94,9 @@ func collectDarwinPower(ctx context.Context) PowerSnapshot {
 	}
 	if out := runTrimmed(ctx, 2*time.Second, "pmset", "-g", "therm"); out != "" {
 		power = mergePower(power, parsePMSetTherm(out))
+	}
+	if out := runTrimmed(ctx, 2*time.Second, "pmset", "-g", "batt"); out != "" {
+		power.Battery = out
 	}
 	return power
 }
@@ -121,6 +145,9 @@ func mergePower(base PowerSnapshot, extra PowerSnapshot) PowerSnapshot {
 	}
 	if base.SchedulerLimit == "" {
 		base.SchedulerLimit = extra.SchedulerLimit
+	}
+	if base.Battery == "" {
+		base.Battery = extra.Battery
 	}
 	return base
 }

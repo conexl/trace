@@ -14,14 +14,23 @@ import (
 	"strings"
 	"time"
 
+	"backend/internal/ai"
 	"backend/internal/alerts"
+	"backend/internal/audit"
+	"backend/internal/auth"
 	"backend/internal/config"
+	"backend/internal/domain"
+	"backend/internal/incidents"
 	"backend/internal/ingest"
 	"backend/internal/presence"
+	"backend/internal/pubsub"
+	"backend/internal/ratelimit"
 	"backend/internal/security"
+	"backend/internal/serverconfig"
 	"backend/internal/store"
 	"backend/internal/tasks"
 
+	redis "github.com/redis/go-redis/v9"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 )
@@ -29,44 +38,92 @@ import (
 var Module = fx.Module("httpapi", fx.Provide(NewServer), fx.Invoke(RegisterLifecycle))
 
 type Server struct {
-	cfg      config.Config
-	store    store.Store
-	ingest   *ingest.Service
-	pairing  *security.PairingService
-	tasks    tasks.Store
-	alerts   alerts.Store
-	presence *presence.Service
-	logger   *zap.Logger
-	mux      *http.ServeMux
+	cfg             config.Config
+	store           store.Store
+	ingest          *ingest.Service
+	pairing         *security.PairingService
+	tasks           tasks.Store
+	alerts          alerts.Store
+	incidents       *incidents.Service
+	aiAnalyzer      *ai.Analyzer
+	presence        *presence.Service
+	auth            *auth.Service
+	audit           audit.Store
+	pubsub          *pubsub.Service
+	configStore     serverconfig.Store
+	logger          *zap.Logger
+	mux             *http.ServeMux
+	loginLimiter    ratelimit.Limiter
+	registerLimiter ratelimit.Limiter
 }
 
-func NewServer(cfg config.Config, store store.Store, ingest *ingest.Service, pairing *security.PairingService, taskStore tasks.Store, alertStore alerts.Store, presenceService *presence.Service, logger *zap.Logger) *Server {
-	server := &Server{cfg: cfg, store: store, ingest: ingest, pairing: pairing, tasks: taskStore, alerts: alertStore, presence: presenceService, logger: logger.Named("http"), mux: http.NewServeMux()}
+const sessionCookieName = "homelytics_session"
+
+func NewServer(cfg config.Config, store store.Store, ingest *ingest.Service, pairing *security.PairingService, taskStore tasks.Store, alertStore alerts.Store, incidentService *incidents.Service, aiAnalyzer *ai.Analyzer, presenceService *presence.Service, authService *auth.Service, auditStore audit.Store, pubsubService *pubsub.Service, configStore serverconfig.Store, redisClient *redis.Client, logger *zap.Logger) *Server {
+	var loginLimiter, registerLimiter ratelimit.Limiter
+	if redisClient != nil {
+		loginLimiter = ratelimit.NewRedis(redisClient, cfg.Auth.LoginRateLimit, cfg.Auth.LoginRateWindow, "login")
+		registerLimiter = ratelimit.NewRedis(redisClient, cfg.Auth.RegisterRateLimit, cfg.Auth.RegisterRateWindow, "register")
+	} else {
+		memLogin := ratelimit.NewMemory(cfg.Auth.LoginRateLimit, cfg.Auth.LoginRateWindow)
+		memRegister := ratelimit.NewMemory(cfg.Auth.RegisterRateLimit, cfg.Auth.RegisterRateWindow)
+		go memLogin.Cleanup(5 * time.Minute)
+		go memRegister.Cleanup(5 * time.Minute)
+		loginLimiter = memLogin
+		registerLimiter = memRegister
+	}
+
+	server := &Server{
+		cfg: cfg, store: store, ingest: ingest, pairing: pairing, tasks: taskStore, alerts: alertStore, incidents: incidentService, aiAnalyzer: aiAnalyzer, presence: presenceService, auth: authService, audit: auditStore, pubsub: pubsubService, configStore: configStore,
+		logger:          logger.Named("http"),
+		mux:             http.NewServeMux(),
+		loginLimiter:    loginLimiter,
+		registerLimiter: registerLimiter,
+	}
 	server.routes()
 	return server
 }
 
 func (s *Server) HTTPServer() *http.Server {
 	return &http.Server{
-		Addr:         s.cfg.HTTP.Addr,
-		Handler:      s.securityHeaders(s.mux),
-		ReadTimeout:  s.cfg.HTTP.ReadTimeout,
-		WriteTimeout: s.cfg.HTTP.WriteTimeout,
-		TLSConfig:    s.tlsConfig(),
+		Addr:              s.cfg.HTTP.Addr,
+		Handler:           s.securityHeaders(s.mux),
+		ReadTimeout:       s.cfg.HTTP.ReadTimeout,
+		ReadHeaderTimeout: 2 * time.Second,
+		WriteTimeout:      s.cfg.HTTP.WriteTimeout,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+		TLSConfig:         s.tlsConfig(),
 	}
 }
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
+	s.mux.HandleFunc("POST /v1/auth/login", ratelimit.Middleware(s.loginLimiter, s.cfg.HTTP.TrustForwardedHeaders, s.handleLogin))
+	s.mux.HandleFunc("POST /v1/auth/register", ratelimit.Middleware(s.registerLimiter, s.cfg.HTTP.TrustForwardedHeaders, s.handleRegister))
+	s.mux.HandleFunc("POST /v1/auth/logout", s.handleLogout)
+	s.mux.HandleFunc("GET /v1/auth/me", s.requireAuth(s.handleAuthMe))
 	s.mux.HandleFunc("POST /v1/pairing/claim", s.handlePairingClaim)
 	s.mux.HandleFunc("POST /v1/agent/snapshots", s.requireAgent(s.handleIngest))
 	s.mux.HandleFunc("GET /v1/agent/tasks", s.requireAgent(s.handlePollTasks))
+	s.mux.HandleFunc("GET /v1/agent/config", s.requireAgent(s.handleGetAgentConfig))
 	s.mux.HandleFunc("POST /v1/agent/tasks/", s.requireAgent(s.handleCompleteTask))
-	s.mux.HandleFunc("GET /v1/alerts", s.requireAdmin(s.handleListAlerts))
-	s.mux.HandleFunc("GET /v1/servers", s.requireAdmin(s.handleListServers))
+	s.mux.HandleFunc("GET /v1/alerts", s.requireAuth(s.handleListAlerts))
+	s.mux.HandleFunc("GET /v1/incidents", s.requireAuth(s.handleListIncidents))
+	s.mux.HandleFunc("GET /v1/incidents/actions", s.requireAuth(s.handleGetIncidentActions))
+	s.mux.HandleFunc("GET /v1/incidents/", s.requireAuth(s.handleGetIncident))
+	s.mux.HandleFunc("POST /v1/incidents/", s.requireAdmin(s.handleIncidentAction))
+	s.mux.HandleFunc("POST /v1/incidents/{id}/analyze", s.requireAdmin(s.handleAnalyzeIncident))
+	s.mux.HandleFunc("GET /v1/servers", s.requireAuth(s.handleListServers))
 	s.mux.HandleFunc("POST /v1/servers/", s.requireAdmin(s.handleServerAction))
-	s.mux.HandleFunc("GET /v1/tasks/", s.requireAdmin(s.handleGetTask))
-	s.mux.HandleFunc("GET /v1/servers/", s.requireAdmin(s.handleGetServer))
+	s.mux.HandleFunc("GET /v1/tasks/", s.requireAuth(s.handleGetTask))
+	s.mux.HandleFunc("GET /v1/tasks", s.requireAdmin(s.handleListTasks))
+	s.mux.HandleFunc("GET /v1/servers/", s.requireAuth(s.handleGetServer))
+	s.mux.HandleFunc("GET /v1/servers/{id}/config", s.requireAuth(s.handleGetServerConfig))
+	s.mux.HandleFunc("GET /v1/servers/{id}/metrics", s.requireAuth(s.handleGetMetrics))
+	s.mux.HandleFunc("POST /v1/servers/{id}/config", s.requireAdmin(s.handleSetServerConfig))
+	s.mux.HandleFunc("GET /v1/audit", s.requireAdmin(s.handleListAudit))
+	s.mux.HandleFunc("GET /v1/events", s.requireAuth(s.handleEvents))
 }
 
 func RegisterLifecycle(lc fx.Lifecycle, api *Server, logger *zap.Logger, cfg config.Config) {
@@ -91,6 +148,89 @@ func RegisterLifecycle(lc fx.Lifecycle, api *Server, logger *zap.Logger, cfg con
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "time": time.Now().UTC()})
+}
+
+func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid login request")
+		return
+	}
+	token, err := s.auth.Login(r.Context(), req.Email, req.Password)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "invalid credentials")
+		return
+	}
+	s.setSessionCookie(w, token)
+	writeJSON(w, http.StatusOK, map[string]any{"token": token})
+}
+
+func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	token := s.getToken(r)
+	if token != "" {
+		_ = s.auth.Logout(r.Context(), token)
+	}
+	s.clearSessionCookie(w)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
+	token := s.getToken(r)
+	session, ok := s.auth.ValidateToken(token)
+	if !ok {
+		session, ok, _ = s.auth.LoadSession(r.Context(), token)
+	}
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "not logged in")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"email": session.Email,
+		"role":  session.Role,
+	})
+}
+
+func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		Code     string `json:"code,omitempty"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid registration request")
+		return
+	}
+	// Email verification code is accepted but ignored until verification is implemented.
+	_ = req.Code
+
+	var token string
+	var err error
+	adminToken := bearerToken(r.Header.Get("Authorization"))
+	if s.auth.IsAdminToken(adminToken) {
+		token, err = s.auth.RegisterAdmin(r.Context(), adminToken, req.Email, req.Password)
+	} else {
+		token, err = s.auth.Register(r.Context(), req.Email, req.Password)
+	}
+	if err != nil {
+		switch {
+		case errors.Is(err, auth.ErrRegistrationClosed):
+			writeError(w, http.StatusForbidden, "registration is disabled")
+		case errors.Is(err, auth.ErrUserExists):
+			writeError(w, http.StatusConflict, "user already exists")
+		case errors.Is(err, auth.ErrWeakPassword):
+			writeError(w, http.StatusBadRequest, err.Error())
+		default:
+			writeError(w, http.StatusInternalServerError, "registration failed")
+		}
+		return
+	}
+	s.setSessionCookie(w, token)
+	writeJSON(w, http.StatusCreated, map[string]any{"token": token})
 }
 
 func (s *Server) handlePairingClaim(w http.ResponseWriter, r *http.Request) {
@@ -121,6 +261,7 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	s.publishEvent(r.Context(), "snapshot", result)
 	writeJSON(w, http.StatusAccepted, map[string]any{"accepted": result.Accepted})
 }
 
@@ -140,7 +281,8 @@ func (s *Server) handleServerAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		TaskName string `json:"task_name"`
+		TaskName string   `json:"task_name"`
+		Domains  []string `json:"domains"`
 	}
 	defer r.Body.Close()
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
@@ -151,12 +293,29 @@ func (s *Server) handleServerAction(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "task_name is required")
 		return
 	}
-	task, err := s.tasks.Enqueue(r.Context(), parts[0], req.TaskName)
+	var task tasks.Task
+	var err error
+	if req.TaskName == "dns-recheck" {
+		if len(req.Domains) == 0 {
+			writeError(w, http.StatusBadRequest, "domains are required for dns-recheck")
+			return
+		}
+		task, err = s.tasks.EnqueueWithPayload(r.Context(), parts[0], req.TaskName, tasks.TaskPayload{Domains: req.Domains}, s.userEmail(r))
+	} else {
+		task, err = s.tasks.Enqueue(r.Context(), parts[0], req.TaskName, s.userEmail(r))
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "enqueue task failed")
 		return
 	}
 	writeJSON(w, http.StatusAccepted, task)
+
+	_ = s.audit.Log(r.Context(), domain.AuditLog{
+		UserEmail: s.userEmail(r),
+		Action:    "task-enqueue",
+		Target:    parts[0],
+		Details:   fmt.Sprintf("task: %s, domains: %v", req.TaskName, req.Domains),
+	})
 }
 
 func (s *Server) handleServiceAction(w http.ResponseWriter, r *http.Request, serverID string) {
@@ -187,12 +346,19 @@ func (s *Server) handleServiceAction(w http.ResponseWriter, r *http.Request, ser
 		writeError(w, http.StatusForbidden, "service is not remote-controllable")
 		return
 	}
-	task, err := s.tasks.EnqueueWithPayload(r.Context(), serverID, "service-action", tasks.TaskPayload{Service: req.Service, Action: req.Action})
+	task, err := s.tasks.EnqueueWithPayload(r.Context(), serverID, "service-action", tasks.TaskPayload{Service: req.Service, Action: req.Action}, s.userEmail(r))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "enqueue service action failed")
 		return
 	}
 	writeJSON(w, http.StatusAccepted, task)
+
+	_ = s.audit.Log(r.Context(), domain.AuditLog{
+		UserEmail: s.userEmail(r),
+		Action:    "service-action",
+		Target:    serverID,
+		Details:   fmt.Sprintf("service: %s, action: %s", req.Service, req.Action),
+	})
 }
 
 func (s *Server) serviceAllowsRemoteControl(ctx context.Context, serverID string, service string) bool {
@@ -262,6 +428,7 @@ func (s *Server) handleCompleteTask(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	s.publishEvent(r.Context(), "task_completed", task)
 	writeJSON(w, http.StatusOK, task)
 }
 
@@ -288,6 +455,21 @@ func (s *Server) handleListServers(w http.ResponseWriter, r *http.Request) {
 	}
 	servers = s.presence.ApplySummaries(r.Context(), servers, time.Now())
 	writeJSON(w, http.StatusOK, map[string]any{"servers": servers})
+}
+
+func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
+	limit := 50
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= 200 {
+			limit = parsed
+		}
+	}
+	tasks, err := s.tasks.List(r.Context(), limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "list tasks failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tasks": tasks})
 }
 
 func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
@@ -329,6 +511,144 @@ func (s *Server) handleGetServer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, state)
 }
 
+func (s *Server) handleGetMetrics(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusNotFound, "server not found")
+		return
+	}
+	to := time.Now().UTC()
+	if raw := r.URL.Query().Get("to"); raw != "" {
+		if t, err := time.Parse(time.RFC3339, raw); err == nil {
+			to = t
+		}
+	}
+	from := to.Add(-1 * time.Hour)
+	if raw := r.URL.Query().Get("from"); raw != "" {
+		if t, err := time.Parse(time.RFC3339, raw); err == nil {
+			from = t
+		}
+	}
+	metrics, err := s.store.GetMetrics(r.Context(), id, from, to)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "get metrics failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"metrics": metrics})
+}
+
+func (s *Server) handleGetServerConfig(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusNotFound, "server not found")
+		return
+	}
+	cfg, err := s.configStore.Get(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, serverconfig.ErrNotFound) {
+			writeJSON(w, http.StatusOK, domain.AgentDesiredConfig{})
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "get server config failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, cfg)
+}
+
+func (s *Server) handleSetServerConfig(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusNotFound, "server not found")
+		return
+	}
+	defer r.Body.Close()
+	var cfg domain.AgentDesiredConfig
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&cfg); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid config")
+		return
+	}
+	if err := validateAgentDesiredConfig(cfg); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	cfg.UpdatedAt = time.Now().UTC()
+	if err := s.configStore.Set(r.Context(), id, cfg); err != nil {
+		writeError(w, http.StatusInternalServerError, "save server config failed")
+		return
+	}
+	_ = s.store.UpdateDesiredRevision(r.Context(), id, cfg.Revision)
+	writeJSON(w, http.StatusOK, cfg)
+
+	_ = s.audit.Log(r.Context(), domain.AuditLog{
+		UserEmail: s.userEmail(r),
+		Action:    "config-change",
+		Target:    id,
+		Details:   "updated agent desired config",
+	})
+}
+
+func validateAgentDesiredConfig(cfg domain.AgentDesiredConfig) error {
+	if cfg.Remote.ShellEnabled {
+		return errors.New("remote shell is not allowed until cloud-side authorization is implemented")
+	}
+	if cfg.Agent.Interval < 0 {
+		return errors.New("agent interval must not be negative")
+	}
+	if cfg.Watchdog.PollingSeconds < 0 {
+		return errors.New("watchdog polling_seconds must not be negative")
+	}
+	if cfg.Watchdog.TimeoutSeconds < 0 {
+		return errors.New("watchdog timeout_seconds must not be negative")
+	}
+	for _, proc := range cfg.Processes {
+		if proc.Name == "" {
+			return errors.New("process name is required")
+		}
+	}
+	for _, check := range cfg.Network.DNSChecks {
+		if check.Name == "" || check.Domain == "" {
+			return errors.New("dns check needs name and domain")
+		}
+	}
+	for _, check := range cfg.Network.PortChecks {
+		if check.Name == "" || check.Address == "" {
+			return errors.New("port check needs name and address")
+		}
+	}
+	for _, test := range cfg.Network.SpeedTests {
+		if test.Name == "" || test.URL == "" {
+			return errors.New("speed test needs name and url")
+		}
+	}
+	for _, stream := range cfg.LogStreams {
+		if stream.Name == "" || stream.Path == "" {
+			return errors.New("log stream needs name and path")
+		}
+	}
+	return nil
+}
+
+func (s *Server) handleGetAgentConfig(w http.ResponseWriter, r *http.Request) {
+	serverID := r.URL.Query().Get("agent_id")
+	if serverID == "" {
+		serverID = r.URL.Query().Get("server_id")
+	}
+	if serverID == "" {
+		writeError(w, http.StatusBadRequest, "agent_id is required")
+		return
+	}
+	cfg, err := s.configStore.Get(r.Context(), serverID)
+	if err != nil {
+		if errors.Is(err, serverconfig.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "config not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "get agent config failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, cfg)
+}
+
 func (s *Server) requireAgent(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if hasVerifiedClientCertificate(r) {
@@ -339,7 +659,7 @@ func (s *Server) requireAgent(next http.HandlerFunc) http.HandlerFunc {
 			writeError(w, http.StatusUnauthorized, "verified client certificate required")
 			return
 		}
-		token := bearerToken(r.Header.Get("Authorization"))
+		token := s.getToken(r)
 		if !s.cfg.Auth.AllowsIngest(token) {
 			writeError(w, http.StatusUnauthorized, "invalid ingest token")
 			return
@@ -350,15 +670,70 @@ func (s *Server) requireAgent(next http.HandlerFunc) http.HandlerFunc {
 
 func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !s.cfg.Auth.RequiresAdmin() {
+		token := s.getToken(r)
+		if session, ok := s.auth.ValidateToken(token); ok {
+			if s.auth.IsAdmin(session) {
+				next(w, r)
+				return
+			}
+			writeError(w, http.StatusForbidden, "insufficient permissions")
+			return
+		}
+		if session, ok, err := s.auth.LoadSession(r.Context(), token); err == nil && ok {
+			if s.auth.IsAdmin(session) {
+				next(w, r)
+				return
+			}
+			writeError(w, http.StatusForbidden, "insufficient permissions")
+			return
+		}
+		if s.auth.IsAdminToken(token) {
 			next(w, r)
 			return
 		}
-		if bearerToken(r.Header.Get("Authorization")) != s.cfg.Auth.AdminToken {
-			writeError(w, http.StatusUnauthorized, "invalid admin token")
+		writeError(w, http.StatusUnauthorized, "invalid admin token")
+	}
+}
+
+func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token := s.getToken(r)
+		if _, ok := s.auth.ValidateToken(token); ok {
+			next(w, r)
 			return
 		}
-		next(w, r)
+		if _, ok, err := s.auth.LoadSession(r.Context(), token); err == nil && ok {
+			next(w, r)
+			return
+		}
+		if s.auth.IsAdminToken(token) {
+			next(w, r)
+			return
+		}
+		writeError(w, http.StatusUnauthorized, "authentication required")
+	}
+}
+
+func (s *Server) requireOwner(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token := s.getToken(r)
+		if session, ok := s.auth.ValidateToken(token); ok {
+			if s.auth.IsOwner(session) {
+				next(w, r)
+				return
+			}
+			writeError(w, http.StatusForbidden, "owner permissions required")
+			return
+		}
+		if session, ok, err := s.auth.LoadSession(r.Context(), token); err == nil && ok {
+			if s.auth.IsOwner(session) {
+				next(w, r)
+				return
+			}
+			writeError(w, http.StatusForbidden, "owner permissions required")
+			return
+		}
+		writeError(w, http.StatusUnauthorized, "authentication required")
 	}
 }
 
@@ -392,6 +767,7 @@ func (s *Server) applyCORS(w http.ResponseWriter, r *http.Request) bool {
 	header.Set("Access-Control-Allow-Origin", allowedOrigin)
 	header.Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 	header.Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+	header.Set("Access-Control-Allow-Credentials", "true")
 	header.Set("Access-Control-Max-Age", "600")
 	return true
 }
@@ -406,6 +782,256 @@ func (s *Server) allowedOrigin(origin string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	ch := s.pubsub.Subscribe()
+	defer s.pubsub.Unsubscribe(ch)
+
+	for {
+		select {
+		case data := <-ch:
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+		case <-r.Context().Done():
+			return
+		}
+	}
+}
+
+func (s *Server) publishEvent(ctx context.Context, eventType string, data any) {
+	payload, _ := json.Marshal(map[string]any{
+		"type": eventType,
+		"data": data,
+	})
+	_ = s.pubsub.Publish(ctx, "events", payload)
+}
+
+func (s *Server) handleListAudit(w http.ResponseWriter, r *http.Request) {
+	limit := 50
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= 200 {
+			limit = parsed
+		}
+	}
+	logs, err := s.audit.Recent(r.Context(), limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "list audit logs failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"audit_logs": logs})
+}
+
+func (s *Server) handleListIncidents(w http.ResponseWriter, r *http.Request) {
+	serverID := r.URL.Query().Get("server_id")
+	limit := 50
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 && parsed <= 200 {
+			limit = parsed
+		}
+	}
+	incidents, err := s.incidents.ListIncidents(r.Context(), serverID, limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "list incidents failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"incidents": incidents})
+}
+
+func (s *Server) handleGetIncidentActions(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"actions": incidents.AvailableActions()})
+}
+
+func (s *Server) handleGetIncident(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/v1/incidents/")
+	if id == "" || strings.Contains(id, "/") {
+		writeError(w, http.StatusNotFound, "incident not found")
+		return
+	}
+	incident, err := s.incidents.GetIncident(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, incidents.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "incident not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "get incident failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, incident)
+}
+
+func (s *Server) handleIncidentAction(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/v1/incidents/")
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		writeError(w, http.StatusNotFound, "incident action not found")
+		return
+	}
+	incidentID := parts[0]
+	action := parts[1]
+
+	// Validate action
+	validActions := map[string]bool{
+		"restart":          true,
+		"disable-watchdog": true,
+	}
+	if !validActions[action] {
+		writeError(w, http.StatusBadRequest, "invalid action")
+		return
+	}
+
+	// Get incident to find server and service
+	incident, err := s.incidents.GetIncident(r.Context(), incidentID)
+	if err != nil {
+		if errors.Is(err, incidents.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "incident not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "get incident failed")
+		return
+	}
+
+	actor := s.userEmail(r)
+
+	// Execute action
+	switch action {
+	case "restart":
+		// Enqueue service-action task
+		_, err = s.tasks.EnqueueWithPayload(r.Context(), incident.ServerID, "service-action",
+			tasks.TaskPayload{Service: incident.ServiceName, Action: "restart"}, actor)
+	case "disable-watchdog":
+		// Update desired config to disable watchdog for this service
+		cfg, err := s.configStore.Get(r.Context(), incident.ServerID)
+		if err != nil && !errors.Is(err, serverconfig.ErrNotFound) {
+			writeError(w, http.StatusInternalServerError, "get config failed")
+			return
+		}
+		// Update process config
+		found := false
+		for i, proc := range cfg.Processes {
+			if proc.Name == incident.ServiceName || proc.Service == incident.ServiceName {
+				cfg.Processes[i].Restart = false
+				found = true
+				break
+			}
+		}
+		if !found {
+			writeError(w, http.StatusBadRequest, "service not found in config")
+			return
+		}
+		cfg.UpdatedAt = time.Now().UTC()
+		if err := s.configStore.Set(r.Context(), incident.ServerID, cfg); err != nil {
+			writeError(w, http.StatusInternalServerError, "update config failed")
+			return
+		}
+	}
+
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "action execution failed")
+		return
+	}
+
+	// Record action in incident timeline
+	if err := s.incidents.ExecuteAction(r.Context(), incidentID, action, actor); err != nil {
+		s.logger.Warn("failed to record incident action", zap.Error(err))
+	}
+
+	// Audit log
+	_ = s.audit.Log(r.Context(), domain.AuditLog{
+		UserEmail: actor,
+		Action:    "incident-action",
+		Target:    incidentID,
+		Details:   fmt.Sprintf("action: %s, service: %s", action, incident.ServiceName),
+	})
+
+	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true, "action": action})
+}
+
+func (s *Server) handleAnalyzeIncident(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "incident id is required")
+		return
+	}
+
+	incident, err := s.incidents.GetIncident(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, incidents.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "incident not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "get incident failed")
+		return
+	}
+
+	analysisContext := ai.IncidentContext{}
+	if state, err := s.store.GetServer(r.Context(), incident.ServerID, time.Now()); err == nil {
+		analysisContext.Server = &state
+	}
+	from := incident.CreatedAt.Add(-15 * time.Minute)
+	to := time.Now().Add(5 * time.Minute)
+	if metrics, err := s.store.GetMetrics(r.Context(), incident.ServerID, from, to); err == nil {
+		analysisContext.Metrics = metrics
+	}
+
+	analysis, err := s.aiAnalyzer.AnalyzeIncident(r.Context(), incident, analysisContext)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("AI analysis failed: %v", err))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, analysis)
+}
+
+func (s *Server) userEmail(r *http.Request) string {
+	token := s.getToken(r)
+	if session, ok := s.auth.ValidateToken(token); ok {
+		return session.Email
+	}
+	if session, ok, err := s.auth.LoadSession(r.Context(), token); err == nil && ok {
+		return session.Email
+	}
+	if s.auth.IsAdminToken(token) {
+		return "admin-token"
+	}
+	return "unknown"
+}
+
+func (s *Server) getToken(r *http.Request) string {
+	if cookie, err := r.Cookie(sessionCookieName); err == nil {
+		return cookie.Value
+	}
+	return bearerToken(r.Header.Get("Authorization"))
+}
+
+func (s *Server) setSessionCookie(w http.ResponseWriter, token string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    token,
+		Path:     "/",
+		MaxAge:   int(s.cfg.Auth.SessionTTL.Seconds()),
+		HttpOnly: true,
+		Secure:   s.cfg.TLS.Enabled,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func (s *Server) clearSessionCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   s.cfg.TLS.Enabled,
+		SameSite: http.SameSiteLaxMode,
+	})
 }
 
 func bearerToken(value string) string {

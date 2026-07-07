@@ -8,8 +8,12 @@ import (
 
 	"backend/internal/alerts"
 	"backend/internal/config"
+	"backend/internal/incidents"
 	"backend/internal/presence"
+	"backend/internal/pubsub"
 	"backend/internal/store"
+
+	"go.uber.org/zap"
 )
 
 func TestServiceIngestsSnapshotEnvelope(t *testing.T) {
@@ -46,5 +50,12 @@ func newTestService(memory *store.MemoryStore) *Service {
 	alertStore := alerts.NewMemoryStore(config.Config{Alerts: config.AlertsConfig{MemoryLimit: 10}})
 	dispatcher := alerts.NewDispatcher(alerts.DispatcherParams{Notifiers: []alerts.Notifier{alerts.NewStoreNotifier(alertStore)}})
 	presenceService := presence.NewService(config.Config{State: config.StateConfig{OfflineAfter: time.Minute}}, presence.NewMemoryStore())
-	return NewService(memory, alerts.NewEvaluator(), dispatcher, presenceService)
+	incidentStore := incidents.NewMemoryStore()
+	pubsubService := pubsub.New(nil)
+	incidentService := incidents.NewService(incidents.ServiceParams{
+		Store:  incidentStore,
+		Pubsub: pubsubService,
+		Logger: zap.NewNop(),
+	})
+	return NewService(memory, alerts.NewEvaluator(), dispatcher, incidentService, presenceService, zap.NewNop())
 }

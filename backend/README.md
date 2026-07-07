@@ -44,6 +44,37 @@ curl -H 'Authorization: Bearer dev-admin-token' http://localhost:8080/v1/servers
 curl -H 'Authorization: Bearer dev-admin-token' http://localhost:8080/v1/servers/homelytics-devbox
 ```
 
+## Authentication and Registration
+
+The backend supports email/password users with session tokens. The first registered user becomes `owner` and can access admin endpoints. Subsequent registrations are controlled by `HOMELYTICS_REGISTRATION_DISABLED` and the optional `HOMELYTICS_ADMIN_TOKEN`.
+
+Register the first user (owner):
+
+```bash
+curl -X POST http://localhost:8080/v1/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"owner@example.com","password":"password123"}'
+```
+
+Login:
+
+```bash
+curl -X POST http://localhost:8080/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"owner@example.com","password":"password123"}'
+```
+
+Create an additional admin user with the admin token:
+
+```bash
+curl -X POST http://localhost:8080/v1/auth/register \
+  -H 'Authorization: Bearer dev-admin-token' \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@example.com","password":"password123"}'
+```
+
+Login and register endpoints are rate-limited by client IP (defaults: 10/min for login, 5/hour for register).
+
 ## MongoDB
 
 Set Mongo env vars to use Mongo instead of the in-memory fallback:
@@ -74,8 +105,16 @@ If Redis is not configured, the backend uses an in-memory fallback and still der
 
 - `HOMELYTICS_HTTP_ADDR`, default `:8080`
 - `HOMELYTICS_CORS_ALLOWED_ORIGINS`, comma-separated frontend origins, for example `http://localhost:5173`
+- `HOMELYTICS_TRUST_FORWARDED_HEADERS`, default `false`. Set to `true` only when the backend runs behind a trusted reverse proxy so rate limiting can use `X-Forwarded-For`/`X-Real-Ip`.
+- `HOMELYTICS_ENV`, default `development`
 - `HOMELYTICS_INGEST_TOKENS`, comma-separated bearer tokens for agent ingest
-- `HOMELYTICS_ADMIN_TOKEN`, optional bearer token for read APIs
+- `HOMELYTICS_ADMIN_TOKEN`, optional bearer token for bootstrapping admin users and read APIs
+- `HOMELYTICS_REGISTRATION_DISABLED`, default `false`. When `true`, only the first user can register; additional users require an `AdminToken`.
+- `HOMELYTICS_BOOTSTRAP_ADMIN_EMAIL`, optional email that is automatically granted `owner` role on first registration.
+- `HOMELYTICS_LOGIN_RATE_LIMIT`, default `10`
+- `HOMELYTICS_LOGIN_RATE_WINDOW`, default `1m`
+- `HOMELYTICS_REGISTER_RATE_LIMIT`, default `5`
+- `HOMELYTICS_REGISTER_RATE_WINDOW`, default `1h`
 - `HOMELYTICS_OFFLINE_AFTER`, default `3m`
 - `HOMELYTICS_MAX_EVENTS`, default `200`
 - `HOMELYTICS_MONGO_URI`, empty means in-memory fallback
@@ -87,18 +126,57 @@ If Redis is not configured, the backend uses an in-memory fallback and still der
 - `HOMELYTICS_ALERT_MEMORY_LIMIT`, default `200`
 - `HOMELYTICS_TELEGRAM_BOT_TOKEN`, optional
 - `HOMELYTICS_TELEGRAM_CHAT_ID`, optional
-- `HOMELYTICS_ENV`, default `development`
+- `AI_API_KEY`, required for AI Incident Analyst (DeepSeek by default)
+- `AI_BASE_URL`, default `https://api.deepseek.com`
+- `AI_MODEL`, default `deepseek-chat`
+
+## AI Incident Analyst
+
+The backend includes an AI-powered incident analysis feature that uses DeepSeek by default:
+
+```bash
+# Configure DeepSeek (default)
+export AI_API_KEY=sk-xxxxxxxxxxxxxxxx
+export AI_BASE_URL=https://api.deepseek.com  # optional, default
+export AI_MODEL=deepseek-chat              # optional, default
+
+# Or use OpenAI
+export AI_API_KEY=sk-xxxxxxxxxxxxxxxx
+export AI_BASE_URL=https://api.openai.com/v1
+export AI_MODEL=gpt-4o-mini
+```
+
+API endpoint:
+
+- `POST /v1/incidents/{id}/analyze` - returns structured AI analysis
+
+Response includes:
+- `summary`: 1-2 sentence incident summary
+- `root_cause`: most likely cause
+- `severity`: critical/warning/info
+- `suggestions`: array of actionable remediation steps
+- `confidence`: 0.0-1.0 confidence score
 
 ## API
 
 - `GET /healthz`
+- `POST /v1/auth/register`
+- `POST /v1/auth/login`
 - `POST /v1/pairing/claim`
 - `POST /v1/agent/snapshots`
 - `GET /v1/agent/tasks`
+- `GET /v1/agent/config`
 - `POST /v1/agent/tasks/{task_id}/result`
 - `GET /v1/alerts`
+- `GET /v1/incidents`
+- `GET /v1/incidents/{id}`
+- `POST /v1/incidents/{id}/restart`
+- `POST /v1/incidents/{id}/disable-watchdog`
+- `POST /v1/incidents/{id}/analyze`
 - `GET /v1/servers`
 - `GET /v1/servers/{id}`
+- `GET /v1/servers/{id}/config`
+- `POST /v1/servers/{id}/config`
 - `POST /v1/servers/{server_id}/tasks`
 - `POST /v1/servers/{server_id}/service-actions`
 - `GET /v1/tasks/{task_id}`
@@ -137,6 +215,10 @@ go run ./cmd/backend
 
 When `HOMELYTICS_TLS_REQUIRE_CLIENT_CERT=true`, `POST /v1/agent/snapshots` requires a verified client certificate. Bearer ingest tokens remain available when that flag is false for local development and migration.
 
+## Production Security
+
+In `HOMELYTICS_ENV=production`, the backend refuses to start unless either mTLS (`HOMELYTICS_TLS_REQUIRE_CLIENT_CERT=true` and `HOMELYTICS_TLS_CLIENT_CA_FILE`) or ingest tokens (`HOMELYTICS_INGEST_TOKENS`) are configured. This prevents accidental open ingest endpoints in production.
+
 ## Remote Tasks
 
 Queue an allowlisted task for an agent/server:
@@ -146,6 +228,15 @@ curl -X POST http://localhost:8080/v1/servers/homelytics-devbox/tasks \
   -H 'Authorization: Bearer dev-admin-token' \
   -H 'Content-Type: application/json' \
   -d '{"task_name":"disk-usage"}'
+```
+
+Queue an immediate DNS recheck for selected domains:
+
+```bash
+curl -X POST http://localhost:8080/v1/servers/homelytics-devbox/tasks \
+  -H 'Authorization: Bearer dev-admin-token' \
+  -H 'Content-Type: application/json' \
+  -d '{"task_name":"dns-recheck","domains":["example.com","example.org"]}'
 ```
 
 Agents poll `GET /v1/agent/tasks?agent_id=<agent-name>` and report results to `POST /v1/agent/tasks/{task_id}/result`. The agent still executes only locally allowlisted YAML tasks.
@@ -158,6 +249,10 @@ curl -X POST http://localhost:8080/v1/servers/homelytics-devbox/service-actions 
   -H 'Content-Type: application/json' \
   -d '{"service":"nginx","action":"restart"}'
 ```
+
+## Agent Config Polling
+
+Agents poll `GET /v1/agent/config?agent_id=<agent-name>` and apply the returned desired configuration to their local YAML. The backend stores the desired config per server under `GET /v1/servers/{id}/config` and accepts updates through `POST /v1/servers/{id}/config`. UI changes to watchdog processes, DNS checks, service policies, and update settings are persisted there and pushed to agents on the next poll.
 
 ## Alerts
 

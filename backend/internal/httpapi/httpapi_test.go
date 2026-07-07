@@ -10,14 +10,22 @@ import (
 	"testing"
 	"time"
 
+	"backend/internal/ai"
 	"backend/internal/alerts"
+	"backend/internal/audit"
+	"backend/internal/auth"
 	"backend/internal/config"
+	"backend/internal/incidents"
 	"backend/internal/ingest"
 	"backend/internal/presence"
+	"backend/internal/pubsub"
 	"backend/internal/security"
+	"backend/internal/serverconfig"
 	"backend/internal/store"
 	"backend/internal/tasks"
+	"backend/internal/users"
 
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -29,6 +37,9 @@ func newTestServer(t *testing.T, cfg config.Config) *Server {
 	if cfg.State.MaxEvents == 0 {
 		cfg.State.MaxEvents = 10
 	}
+	if cfg.Auth.SessionTTL == 0 {
+		cfg.Auth.SessionTTL = 24 * time.Hour
+	}
 	memory := store.NewMemoryStore(cfg)
 	ca, err := security.NewCertificateAuthority(cfg)
 	if err != nil {
@@ -38,7 +49,21 @@ func newTestServer(t *testing.T, cfg config.Config) *Server {
 	alertStore := alerts.NewMemoryStore(cfg)
 	dispatcher := alerts.NewDispatcher(alerts.DispatcherParams{Notifiers: []alerts.Notifier{alerts.NewStoreNotifier(alertStore)}})
 	presenceService := presence.NewService(cfg, presence.NewMemoryStore())
-	return NewServer(cfg, memory, ingest.NewService(memory, alerts.NewEvaluator(), dispatcher, presenceService), pairing, tasks.NewMemoryStore(), alertStore, presenceService, zaptest.NewLogger(t))
+	incidentStore := incidents.NewMemoryStore()
+	pubsubService := pubsub.New(nil)
+	incidentService := incidents.NewService(incidents.ServiceParams{
+		Store:  incidentStore,
+		Pubsub: pubsubService,
+		Logger: zaptest.NewLogger(t),
+	})
+	ingestService := ingest.NewService(memory, alerts.NewEvaluator(), dispatcher, incidentService, presenceService, zaptest.NewLogger(t))
+	userStore := users.NewMemoryStore()
+	authService := auth.NewService(cfg, userStore, auth.NewMemorySessionStore())
+	configStore := serverconfig.NewMemoryStore()
+	auditStore := audit.NewMemoryStore()
+	aiClient := ai.NewClient(ai.ClientParams{Config: cfg, Logger: zap.NewNop()})
+	aiAnalyzer := ai.NewAnalyzer(aiClient, zaptest.NewLogger(t))
+	return NewServer(cfg, memory, ingestService, pairing, tasks.NewMemoryStore(), alertStore, incidentService, aiAnalyzer, presenceService, authService, auditStore, pubsubService, configStore, nil, zaptest.NewLogger(t))
 }
 
 func TestIngestAndReadServerState(t *testing.T) {
@@ -325,5 +350,242 @@ func TestAlertsCreatedFromIngest(t *testing.T) {
 	}
 	if len(out.Alerts) != 1 || out.Alerts[0].Type != "process.down" || out.Alerts[0].Subject != "nginx" {
 		t.Fatalf("alerts = %#v", out.Alerts)
+	}
+}
+
+func registerUser(t *testing.T, server *Server, email, password string, adminToken string) string {
+	t.Helper()
+	body, _ := json.Marshal(map[string]string{"email": email, "password": password})
+	req := httptest.NewRequest(http.MethodPost, "/v1/auth/register", bytes.NewReader(body))
+	if adminToken != "" {
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+	}
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("register status = %d body=%s", w.Code, w.Body.String())
+	}
+	var resp struct{ Token string `json:"token"` }
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	return resp.Token
+}
+
+func TestFirstUserBecomesOwner(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}}
+	server := newTestServer(t, cfg)
+	token := registerUser(t, server, "owner@example.com", "password123", "")
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/servers", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("owner should access admin endpoint: status = %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestRegistrationDisabledRejectsSecondUser(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Auth: config.AuthConfig{RegistrationDisabled: true}}
+	server := newTestServer(t, cfg)
+	registerUser(t, server, "owner@example.com", "password123", "")
+
+	body, _ := json.Marshal(map[string]string{"email": "second@example.com", "password": "password123"})
+	req := httptest.NewRequest(http.MethodPost, "/v1/auth/register", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("second registration status = %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestAdminTokenCanCreateAdminUser(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Auth: config.AuthConfig{AdminToken: "admin-token", RegistrationDisabled: true}}
+	server := newTestServer(t, cfg)
+	registerUser(t, server, "owner@example.com", "password123", "")
+	adminToken := registerUser(t, server, "admin@example.com", "password123", "admin-token")
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/servers", nil)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("admin token created user should access admin endpoint: status = %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestViewerCannotAccessAdminEndpoints(t *testing.T) {
+  cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}}
+  server := newTestServer(t, cfg)
+  registerUser(t, server, "owner@example.com", "password123", "")
+  viewerToken := registerUser(t, server, "viewer@example.com", "password123", "")
+
+  req := httptest.NewRequest(http.MethodGet, "/v1/servers", nil)
+  req.Header.Set("Authorization", "Bearer "+viewerToken)
+  w := httptest.NewRecorder()
+  server.securityHeaders(server.mux).ServeHTTP(w, req)
+  if w.Code != http.StatusOK {
+    t.Fatalf("viewer list servers status = %d body=%s", w.Code, w.Body.String())
+  }
+
+  req = httptest.NewRequest(http.MethodGet, "/v1/tasks", nil)
+  req.Header.Set("Authorization", "Bearer "+viewerToken)
+  w = httptest.NewRecorder()
+  server.securityHeaders(server.mux).ServeHTTP(w, req)
+  if w.Code != http.StatusForbidden {
+    t.Fatalf("viewer admin endpoint status = %d body=%s", w.Code, w.Body.String())
+  }
+}
+
+func TestDNSRecheckTaskEnqueueWithDomains(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Auth: config.AuthConfig{AdminToken: "admin-token"}}
+	server := newTestServer(t, cfg)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/servers/devbox/tasks", bytes.NewReader([]byte(`{"task_name":"dns-recheck","domains":["example.com","example.org"]}`)))
+	req.Header.Set("Authorization", "Bearer admin-token")
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("enqueue status = %d body=%s", w.Code, w.Body.String())
+	}
+	var task tasks.Task
+	if err := json.Unmarshal(w.Body.Bytes(), &task); err != nil {
+		t.Fatal(err)
+	}
+	if task.Name != "dns-recheck" || len(task.Payload.Domains) != 2 {
+		t.Fatalf("task = %#v", task)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/agent/tasks?agent_id=devbox", nil)
+	w = httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("poll status = %d body=%s", w.Code, w.Body.String())
+	}
+	var poll struct {
+		Tasks []tasks.Task `json:"tasks"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &poll); err != nil {
+		t.Fatal(err)
+	}
+	if len(poll.Tasks) != 1 || len(poll.Tasks[0].Payload.Domains) != 2 {
+		t.Fatalf("poll = %#v", poll)
+	}
+}
+
+func TestDNSRecheckTaskRejectsMissingDomains(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Auth: config.AuthConfig{AdminToken: "admin-token"}}
+	server := newTestServer(t, cfg)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/servers/devbox/tasks", bytes.NewReader([]byte(`{"task_name":"dns-recheck"}`)))
+	req.Header.Set("Authorization", "Bearer admin-token")
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+
+
+func TestLoginRateLimitBlocksExcess(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Auth: config.AuthConfig{AdminToken: "admin-token", LoginRateLimit: 2, LoginRateWindow: time.Minute}}
+	server := newTestServer(t, cfg)
+
+	body, _ := json.Marshal(map[string]string{"email": "a@b.com", "password": "wrong"})
+	makeReq := func() int {
+		req := httptest.NewRequest(http.MethodPost, "/v1/auth/login", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+		server.securityHeaders(server.mux).ServeHTTP(w, req)
+		return w.Code
+	}
+	if makeReq() != http.StatusUnauthorized {
+		t.Fatalf("first request should be unauthorized")
+	}
+	if makeReq() != http.StatusUnauthorized {
+		t.Fatalf("second request should be unauthorized")
+	}
+	if makeReq() != http.StatusTooManyRequests {
+		t.Fatalf("third request should be rate limited, got %d", makeReq())
+	}
+}
+
+func TestLoginRateLimitIgnoresForwardedHeadersByDefault(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Auth: config.AuthConfig{AdminToken: "admin-token", LoginRateLimit: 1, LoginRateWindow: time.Minute}}
+	server := newTestServer(t, cfg)
+
+	body, _ := json.Marshal(map[string]string{"email": "a@b.com", "password": "wrong"})
+	makeReq := func(xff string) int {
+		req := httptest.NewRequest(http.MethodPost, "/v1/auth/login", bytes.NewReader(body))
+		req.Header.Set("X-Forwarded-For", xff)
+		w := httptest.NewRecorder()
+		server.securityHeaders(server.mux).ServeHTTP(w, req)
+		return w.Code
+	}
+	if makeReq("1.2.3.4") != http.StatusUnauthorized {
+		t.Fatalf("first request should be unauthorized")
+	}
+	if makeReq("5.6.7.8") != http.StatusTooManyRequests {
+		t.Fatalf("second request with spoofed X-Forwarded-For should still be rate limited, got %d", makeReq("5.6.7.8"))
+	}
+}
+
+func TestLoginRateLimitUsesForwardedHeadersWhenTrusted(t *testing.T) {
+	cfg := config.Config{
+		State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10},
+		Auth:  config.AuthConfig{AdminToken: "admin-token", LoginRateLimit: 1, LoginRateWindow: time.Minute},
+		HTTP:  config.HTTPConfig{TrustForwardedHeaders: true},
+	}
+	server := newTestServer(t, cfg)
+
+	body, _ := json.Marshal(map[string]string{"email": "a@b.com", "password": "wrong"})
+	makeReq := func(xff string) int {
+		req := httptest.NewRequest(http.MethodPost, "/v1/auth/login", bytes.NewReader(body))
+		req.Header.Set("X-Forwarded-For", xff)
+		w := httptest.NewRecorder()
+		server.securityHeaders(server.mux).ServeHTTP(w, req)
+		return w.Code
+	}
+	if makeReq("1.2.3.4") != http.StatusUnauthorized {
+		t.Fatalf("first request should be unauthorized")
+	}
+	if makeReq("5.6.7.8") != http.StatusUnauthorized {
+		t.Fatalf("second request from different forwarded IP should not be rate limited, got %d", makeReq("5.6.7.8"))
+	}
+	if makeReq("1.2.3.4") != http.StatusTooManyRequests {
+		t.Fatalf("third request from same forwarded IP should be rate limited, got %d", makeReq("1.2.3.4"))
+	}
+}
+
+func TestRegisterRateLimitBlocksExcess(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Auth: config.AuthConfig{LoginRateLimit: 100, LoginRateWindow: time.Minute, RegisterRateLimit: 1, RegisterRateWindow: time.Minute}}
+	server := newTestServer(t, cfg)
+
+	body, _ := json.Marshal(map[string]string{"email": "user@example.com", "password": "password123"})
+	makeReq := func() int {
+		req := httptest.NewRequest(http.MethodPost, "/v1/auth/register", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+		server.securityHeaders(server.mux).ServeHTTP(w, req)
+		return w.Code
+	}
+	if makeReq() != http.StatusCreated {
+		t.Fatalf("first registration should succeed")
+	}
+	if makeReq() != http.StatusTooManyRequests {
+		t.Fatalf("second registration should be rate limited, got %d", makeReq())
+	}
+}
+
+func TestServerConfigRejectsShellEnabled(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Auth: config.AuthConfig{AdminToken: "admin-token"}}
+	server := newTestServer(t, cfg)
+	body, _ := json.Marshal(map[string]any{"remote": map[string]any{"shell_enabled": true}})
+	req := httptest.NewRequest(http.MethodPost, "/v1/servers/devbox/config", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer admin-token")
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("shell enabled config status = %d body=%s", w.Code, w.Body.String())
 	}
 }

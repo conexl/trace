@@ -21,15 +21,17 @@ type Config struct {
 	Mongo       MongoConfig
 	Redis       RedisConfig
 	Alerts      AlertsConfig
+	AI          AIConfig
 	Environment string
 }
 
 type HTTPConfig struct {
-	Addr            string
-	ReadTimeout     time.Duration
-	WriteTimeout    time.Duration
-	ShutdownTimeout time.Duration
-	AllowedOrigins  []string
+	Addr                  string
+	ReadTimeout           time.Duration
+	WriteTimeout          time.Duration
+	ShutdownTimeout       time.Duration
+	AllowedOrigins        []string
+	TrustForwardedHeaders bool
 }
 
 type TLSConfig struct {
@@ -41,8 +43,15 @@ type TLSConfig struct {
 }
 
 type AuthConfig struct {
-	IngestTokens map[string]struct{}
-	AdminToken   string
+	IngestTokens         map[string]struct{}
+	AdminToken           string
+	RegistrationDisabled bool
+	BootstrapAdminEmail  string
+	LoginRateLimit       int
+	LoginRateWindow      time.Duration
+	RegisterRateLimit    int
+	RegisterRateWindow   time.Duration
+	SessionTTL           time.Duration
 }
 
 type PairingConfig struct {
@@ -77,14 +86,21 @@ type AlertsConfig struct {
 	TelegramChatID   string
 }
 
+type AIConfig struct {
+	APIKey  string
+	BaseURL string
+	Model   string
+}
+
 func Load() (Config, error) {
 	cfg := Config{
 		HTTP: HTTPConfig{
-			Addr:            env("HOMELYTICS_HTTP_ADDR", ":8080"),
-			ReadTimeout:     envDuration("HOMELYTICS_HTTP_READ_TIMEOUT", 5*time.Second),
-			WriteTimeout:    envDuration("HOMELYTICS_HTTP_WRITE_TIMEOUT", 10*time.Second),
-			ShutdownTimeout: envDuration("HOMELYTICS_HTTP_SHUTDOWN_TIMEOUT", 5*time.Second),
-			AllowedOrigins:  parseCSV(os.Getenv("HOMELYTICS_CORS_ALLOWED_ORIGINS")),
+			Addr:                  env("HOMELYTICS_HTTP_ADDR", ":8080"),
+			ReadTimeout:           envDuration("HOMELYTICS_HTTP_READ_TIMEOUT", 5*time.Second),
+			WriteTimeout:          envDuration("HOMELYTICS_HTTP_WRITE_TIMEOUT", 10*time.Second),
+			ShutdownTimeout:       envDuration("HOMELYTICS_HTTP_SHUTDOWN_TIMEOUT", 5*time.Second),
+			AllowedOrigins:        parseCSV(os.Getenv("HOMELYTICS_CORS_ALLOWED_ORIGINS")),
+			TrustForwardedHeaders: envBool("HOMELYTICS_TRUST_FORWARDED_HEADERS", false),
 		},
 		TLS: TLSConfig{
 			Enabled:           envBool("HOMELYTICS_TLS_ENABLED", false),
@@ -94,8 +110,15 @@ func Load() (Config, error) {
 			RequireClientCert: envBool("HOMELYTICS_TLS_REQUIRE_CLIENT_CERT", false),
 		},
 		Auth: AuthConfig{
-			IngestTokens: parseTokenSet(os.Getenv("HOMELYTICS_INGEST_TOKENS")),
-			AdminToken:   os.Getenv("HOMELYTICS_ADMIN_TOKEN"),
+			IngestTokens:         parseTokenSet(os.Getenv("HOMELYTICS_INGEST_TOKENS")),
+			AdminToken:           os.Getenv("HOMELYTICS_ADMIN_TOKEN"),
+			RegistrationDisabled: envBool("HOMELYTICS_REGISTRATION_DISABLED", false),
+			BootstrapAdminEmail:  strings.ToLower(strings.TrimSpace(os.Getenv("HOMELYTICS_BOOTSTRAP_ADMIN_EMAIL"))),
+			LoginRateLimit:       envInt("HOMELYTICS_LOGIN_RATE_LIMIT", 10),
+			LoginRateWindow:      envDuration("HOMELYTICS_LOGIN_RATE_WINDOW", time.Minute),
+			RegisterRateLimit:    envInt("HOMELYTICS_REGISTER_RATE_LIMIT", 5),
+			RegisterRateWindow:   envDuration("HOMELYTICS_REGISTER_RATE_WINDOW", time.Hour),
+			SessionTTL:           envDuration("HOMELYTICS_SESSION_TTL", 24*time.Hour),
 		},
 		Pairing: PairingConfig{
 			Tokens:     parseTokenSet(os.Getenv("HOMELYTICS_PAIRING_TOKENS")),
@@ -124,6 +147,11 @@ func Load() (Config, error) {
 			TelegramBotToken: os.Getenv("HOMELYTICS_TELEGRAM_BOT_TOKEN"),
 			TelegramChatID:   os.Getenv("HOMELYTICS_TELEGRAM_CHAT_ID"),
 		},
+		AI: AIConfig{
+			APIKey:  os.Getenv("AI_API_KEY"),
+			BaseURL: os.Getenv("AI_BASE_URL"),
+			Model:   os.Getenv("AI_MODEL"),
+		},
 		Environment: env("HOMELYTICS_ENV", "development"),
 	}
 	if cfg.TLS.Enabled && (cfg.TLS.CertFile == "" || cfg.TLS.KeyFile == "") {
@@ -137,6 +165,25 @@ func Load() (Config, error) {
 	}
 	if cfg.Environment == "production" && len(cfg.Pairing.Tokens) > 0 && (cfg.Pairing.CACertFile == "" || cfg.Pairing.CAKeyFile == "") {
 		return Config{}, fmt.Errorf("pairing CA files are required in production")
+	}
+	if cfg.Environment == "production" {
+		if !cfg.TLS.Enabled {
+			return Config{}, fmt.Errorf("production requires TLS to be enabled (HOMELYTICS_TLS_ENABLED=true)")
+		}
+		for _, origin := range cfg.HTTP.AllowedOrigins {
+			if origin == "*" {
+				return Config{}, fmt.Errorf("production does not allow CORS origin '*' (HOMELYTICS_CORS_ALLOWED_ORIGINS)")
+			}
+		}
+		if !cfg.Auth.RegistrationDisabled {
+			// We allow it but it's dangerous. For now, let's just require it to be explicit.
+		}
+
+		hasMTLS := cfg.TLS.RequireClientCert && cfg.TLS.ClientCAFile != ""
+		hasIngestToken := len(cfg.Auth.IngestTokens) > 0
+		if !hasMTLS && !hasIngestToken {
+			return Config{}, fmt.Errorf("production requires either mTLS (HOMELYTICS_TLS_REQUIRE_CLIENT_CERT=true and HOMELYTICS_TLS_CLIENT_CA_FILE) or ingest tokens (HOMELYTICS_INGEST_TOKENS)")
+		}
 	}
 	if cfg.State.MaxEvents <= 0 {
 		return Config{}, fmt.Errorf("HOMELYTICS_MAX_EVENTS must be positive")

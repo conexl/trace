@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, LogOut, User } from 'lucide-react';
+import { AlertTriangle, Bell, LogIn, LogOut, User } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
@@ -11,12 +11,34 @@ interface HeaderProps {
 }
 
 export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
-  const { isAuthenticated, logout, token } = useAuth();
+  const { isAuthenticated, logout, user } = useAuth();
   const navigate = useNavigate();
   const [confirmLogout, setConfirmLogout] = React.useState(false);
 
   return (
     <header className="fixed right-0 top-0 z-40 flex items-center gap-2 p-4 sm:p-6">
+      {isAuthenticated && (
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/incidents')}
+            className="h-8 w-8 p-0 text-muted hover:text-red-400"
+            title="Incidents"
+          >
+            <AlertTriangle className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/alerts')}
+            className="h-8 w-8 p-0 text-muted hover:text-accent"
+            title="Alerts"
+          >
+            <Bell className="h-4 w-4" />
+          </Button>
+        </>
+      )}
       <AnimatePresence mode="wait">
         {!isAuthenticated ? (
           <motion.div
@@ -48,7 +70,7 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
             <div className="flex h-8 items-center gap-2 rounded-full border border-border bg-surface px-3">
               <User className="h-3.5 w-3.5 text-accent" />
               <span className="max-w-[120px] truncate font-mono text-xs text-active">
-                {token.slice(0, 8)}…
+                {user?.email ?? 'Session'}
               </span>
             </div>
             <Button

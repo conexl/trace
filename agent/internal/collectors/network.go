@@ -39,6 +39,10 @@ func (c *NetworkCollector) Collect(ctx context.Context, cfg config.NetworkConfig
 	}
 }
 
+func (c *NetworkCollector) PublicIP(ctx context.Context, endpoint string) (string, error) {
+	return c.publicIP(ctx, endpoint)
+}
+
 func (c *NetworkCollector) publicIP(ctx context.Context, endpoint string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -57,6 +61,14 @@ func (c *NetworkCollector) publicIP(ctx context.Context, endpoint string) (strin
 		return "", err
 	}
 	return strings.TrimSpace(string(body)), nil
+}
+
+func (c *NetworkCollector) CheckDNS(ctx context.Context, domains []string, publicIP string) []DNSResult {
+	checks := make([]config.DNSCheck, 0, len(domains))
+	for _, d := range domains {
+		checks = append(checks, config.DNSCheck{Name: d, Domain: d})
+	}
+	return c.checkDNS(ctx, checks, publicIP)
 }
 
 func (c *NetworkCollector) checkDNS(ctx context.Context, checks []config.DNSCheck, publicIP string) []DNSResult {

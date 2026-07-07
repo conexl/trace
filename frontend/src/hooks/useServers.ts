@@ -5,12 +5,12 @@ import type { ServerSummary } from '@/lib/types';
 import { usePolling } from './usePolling';
 
 export function useServers(enabled = true) {
-  const { isAuthenticated, token } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   const fetcher = useCallback(async () => {
     const response = await getServers();
     return response.servers;
-  }, [token]);
+  }, []);
 
   return usePolling<ServerSummary[]>({
     fetcher,

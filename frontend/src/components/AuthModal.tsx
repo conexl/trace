@@ -17,24 +17,18 @@ interface AuthModalProps {
 
 export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const { login, isAuthenticated } = useAuth();
-  const [token, setToken] = React.useState('');
 
   React.useEffect(() => {
-    if (open) setToken('');
-  }, [open]);
+    if (open) {
+      login();
+    }
+  }, [open, login]);
 
   React.useEffect(() => {
     if (isAuthenticated) {
       onOpenChange(false);
     }
   }, [isAuthenticated, onOpenChange]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (token.trim()) {
-      login(token.trim());
-    }
-  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -45,31 +39,18 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
             Авторизация
           </DialogTitle>
           <DialogDescription>
-            Введите admin token для управления узлами.
+            Сессия будет обновлена автоматически, если кука доступна.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-          <div className="space-y-1.5">
-            <label className="text-xs font-mono uppercase text-muted">Admin token</label>
-            <input
-              type="password"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="dev-admin-token"
-              className="w-full rounded-md border border-border bg-canvas px-3 py-2 text-sm text-active placeholder:text-muted/50 focus:border-border-focus focus:outline-none font-mono"
-              autoFocus
-            />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" size="sm" type="button" onClick={() => onOpenChange(false)}>
-              Отмена
-            </Button>
-            <Button variant="neon" size="sm" type="submit" disabled={!token.trim()}>
-              Войти
-            </Button>
-          </div>
-        </form>
+        <div className="pt-2 text-xs text-muted">
+          Если вы не вошли, перейдите на страницу входа.
+        </div>
+        <div className="mt-4 flex justify-end">
+          <Button variant="ghost" size="sm" type="button" onClick={() => onOpenChange(false)}>
+            Закрыть
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

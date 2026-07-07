@@ -57,16 +57,17 @@ log_streams:
     max_bytes: 8192
 
 update:
-  url: ""
-  sha256: ""
-  signature_url: ""
+  policy: check # manual | check | auto; check notifies about updates, auto applies and restarts
+  url: "" # binary download URL when update policy is check/auto
+  sha256: "" # expected SHA-256 of the downloaded binary
+  signature_url: "" # URL to a base64 Ed25519 signature file
   ed25519_public_key: "" # base64 raw Ed25519 public key; signature is base64 over the binary bytes
 
 remote:
-  tasks_enabled: true
-  shell_enabled: false
+  tasks_enabled: true # allow the backend to queue allowlisted tasks
+  shell_enabled: false # PTY remote shell is disabled until cloud-side authorization is implemented
   audit_path: ./homelytics-audit.jsonl
-  poll_every: 15s
+  poll_every: 15s # how often to poll the backend for tasks and desired config
 
 hardware:
   smart_devices: [] # empty means best-effort smartctl --scan when smartctl is installed
@@ -81,7 +82,7 @@ tasks:
     env: {}
 
 power:
-  prevent_sleep: false
+  prevent_sleep: false # use a systemd inhibitor to keep the machine awake
 
 buffer:
   path: ./homelytics-buffer.jsonl

@@ -63,3 +63,7 @@ func (m *fakeServiceManager) Restart(context.Context, string) error {
 	}
 	return nil
 }
+
+func (m *fakeServiceManager) ListServices(context.Context) ([]string, error) {
+	return []string{"nginx"}, nil
+}
