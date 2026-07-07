@@ -353,6 +353,33 @@ func TestAlertsCreatedFromIngest(t *testing.T) {
 	}
 }
 
+func TestIncidentMetricsCreatedFromIngest(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Auth: config.AuthConfig{AdminToken: "admin-token"}}
+	server := newTestServer(t, cfg)
+	payload := []byte(`{"snapshots":[{"agent_name":"devbox","events":[{"type":"process.down","severity":"critical","subject":"nginx","message":"critical process is not running","timestamp":"2026-07-02T09:00:00Z"}],"collected_at":"2026-07-02T09:00:00Z"}]}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/agent/snapshots", bytes.NewReader(payload))
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("ingest status = %d body=%s", w.Code, w.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/incidents/metrics?window=7d", nil)
+	req.Header.Set("Authorization", "Bearer admin-token")
+	w = httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("metrics status = %d body=%s", w.Code, w.Body.String())
+	}
+	var out incidents.Metrics
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Total != 1 || out.Open != 1 || out.Critical != 1 {
+		t.Fatalf("metrics = %#v", out)
+	}
+}
+
 func registerUser(t *testing.T, server *Server, email, password string, adminToken string) string {
 	t.Helper()
 	body, _ := json.Marshal(map[string]string{"email": email, "password": password})
@@ -365,7 +392,9 @@ func registerUser(t *testing.T, server *Server, email, password string, adminTok
 	if w.Code != http.StatusCreated {
 		t.Fatalf("register status = %d body=%s", w.Code, w.Body.String())
 	}
-	var resp struct{ Token string `json:"token"` }
+	var resp struct {
+		Token string `json:"token"`
+	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatal(err)
 	}
@@ -416,26 +445,26 @@ func TestAdminTokenCanCreateAdminUser(t *testing.T) {
 }
 
 func TestViewerCannotAccessAdminEndpoints(t *testing.T) {
-  cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}}
-  server := newTestServer(t, cfg)
-  registerUser(t, server, "owner@example.com", "password123", "")
-  viewerToken := registerUser(t, server, "viewer@example.com", "password123", "")
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}}
+	server := newTestServer(t, cfg)
+	registerUser(t, server, "owner@example.com", "password123", "")
+	viewerToken := registerUser(t, server, "viewer@example.com", "password123", "")
 
-  req := httptest.NewRequest(http.MethodGet, "/v1/servers", nil)
-  req.Header.Set("Authorization", "Bearer "+viewerToken)
-  w := httptest.NewRecorder()
-  server.securityHeaders(server.mux).ServeHTTP(w, req)
-  if w.Code != http.StatusOK {
-    t.Fatalf("viewer list servers status = %d body=%s", w.Code, w.Body.String())
-  }
+	req := httptest.NewRequest(http.MethodGet, "/v1/servers", nil)
+	req.Header.Set("Authorization", "Bearer "+viewerToken)
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("viewer list servers status = %d body=%s", w.Code, w.Body.String())
+	}
 
-  req = httptest.NewRequest(http.MethodGet, "/v1/tasks", nil)
-  req.Header.Set("Authorization", "Bearer "+viewerToken)
-  w = httptest.NewRecorder()
-  server.securityHeaders(server.mux).ServeHTTP(w, req)
-  if w.Code != http.StatusForbidden {
-    t.Fatalf("viewer admin endpoint status = %d body=%s", w.Code, w.Body.String())
-  }
+	req = httptest.NewRequest(http.MethodGet, "/v1/tasks", nil)
+	req.Header.Set("Authorization", "Bearer "+viewerToken)
+	w = httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("viewer admin endpoint status = %d body=%s", w.Code, w.Body.String())
+	}
 }
 
 func TestDNSRecheckTaskEnqueueWithDomains(t *testing.T) {
@@ -486,8 +515,6 @@ func TestDNSRecheckTaskRejectsMissingDomains(t *testing.T) {
 		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
 	}
 }
-
-
 
 func TestLoginRateLimitBlocksExcess(t *testing.T) {
 	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Auth: config.AuthConfig{AdminToken: "admin-token", LoginRateLimit: 2, LoginRateWindow: time.Minute}}

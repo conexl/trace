@@ -12,28 +12,28 @@ type Incident struct {
 	ID          string          `json:"id" bson:"_id"`
 	ServerID    string          `json:"server_id" bson:"server_id"`
 	ServiceName string          `json:"service_name" bson:"service_name"`
-	Status      string          `json:"status" bson:"status"` // open, investigating, resolved, suppressed
+	Status      string          `json:"status" bson:"status"`     // open, investigating, resolved, suppressed
 	Severity    string          `json:"severity" bson:"severity"` // critical, warning
 	Title       string          `json:"title" bson:"title"`
 	Summary     string          `json:"summary" bson:"summary"`
 	Timeline    []TimelineEvent `json:"timeline" bson:"timeline"`
 	CreatedAt   time.Time       `json:"created_at" bson:"created_at"`
 	UpdatedAt   time.Time       `json:"updated_at" bson:"updated_at"`
-	ResolvedAt *time.Time       `json:"resolved_at,omitempty" bson:"resolved_at,omitempty"`
+	ResolvedAt  *time.Time      `json:"resolved_at,omitempty" bson:"resolved_at,omitempty"`
 }
 
 // TimelineEvent represents a single event in the incident timeline
 type TimelineEvent struct {
 	ID        string          `json:"id" bson:"id"`
 	Type      string          `json:"type" bson:"type"` // crash, restart, action, log, resolved
-	Timestamp time.Time        `json:"timestamp" bson:"timestamp"`
-	Title     string           `json:"title" bson:"title"`
-	Message   string           `json:"message,omitempty" bson:"message,omitempty"`
-	ExitCode  int              `json:"exit_code,omitempty" bson:"exit_code,omitempty"`
-	Action    string           `json:"action,omitempty" bson:"action,omitempty"`
-	Actor     string           `json:"actor,omitempty" bson:"actor,omitempty"` // who performed action
-	Result    string           `json:"result,omitempty" bson:"result,omitempty"` // success, failed
-	Metadata  json.RawMessage  `json:"metadata,omitempty" bson:"metadata,omitempty"`
+	Timestamp time.Time       `json:"timestamp" bson:"timestamp"`
+	Title     string          `json:"title" bson:"title"`
+	Message   string          `json:"message,omitempty" bson:"message,omitempty"`
+	ExitCode  int             `json:"exit_code,omitempty" bson:"exit_code,omitempty"`
+	Action    string          `json:"action,omitempty" bson:"action,omitempty"`
+	Actor     string          `json:"actor,omitempty" bson:"actor,omitempty"`   // who performed action
+	Result    string          `json:"result,omitempty" bson:"result,omitempty"` // success, failed
+	Metadata  json.RawMessage `json:"metadata,omitempty" bson:"metadata,omitempty"`
 }
 
 // IncidentAction represents available actions for an incident
@@ -43,6 +43,30 @@ type IncidentAction struct {
 	Description string `json:"description"`
 	Enabled     bool   `json:"enabled"`
 	ComingSoon  bool   `json:"coming_soon,omitempty"`
+}
+
+// Metrics summarizes incident reliability over a rolling window.
+type Metrics struct {
+	Window          string                    `json:"window"`
+	Total           int                       `json:"total"`
+	Open            int                       `json:"open"`
+	Resolved        int                       `json:"resolved"`
+	Critical        int                       `json:"critical"`
+	Warning         int                       `json:"warning"`
+	MTTRSeconds     float64                   `json:"mttr_seconds"`
+	FrequencyPerDay float64                   `json:"frequency_per_day"`
+	ByService       map[string]ServiceMetrics `json:"by_service"`
+}
+
+// ServiceMetrics summarizes incident reliability for one service.
+type ServiceMetrics struct {
+	Total           int     `json:"total"`
+	Open            int     `json:"open"`
+	Resolved        int     `json:"resolved"`
+	Critical        int     `json:"critical"`
+	Warning         int     `json:"warning"`
+	MTTRSeconds     float64 `json:"mttr_seconds"`
+	FrequencyPerDay float64 `json:"frequency_per_day"`
 }
 
 // AvailableActions returns list of actions for MVP
@@ -90,19 +114,19 @@ func CreateFromEvent(serverID string, event domain.AgentEvent, now time.Time) *I
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	
+
 	// Add initial timeline event
 	incident.Timeline = []TimelineEvent{
 		{
 			ID:        generateEventID(now, 0),
 			Type:      "crash",
 			Timestamp: event.Timestamp,
-			Title:      "Service crashed",
-			Message:    event.Message,
-			ExitCode:   event.ExitCode,
+			Title:     "Service crashed",
+			Message:   event.Message,
+			ExitCode:  event.ExitCode,
 		},
 	}
-	
+
 	// Add restart attempt if watchdog tried
 	if event.Action == "restart" {
 		incident.Timeline = append(incident.Timeline, TimelineEvent{
@@ -114,7 +138,7 @@ func CreateFromEvent(serverID string, event domain.AgentEvent, now time.Time) *I
 			Result:    "attempted",
 		})
 	}
-	
+
 	return incident
 }
 

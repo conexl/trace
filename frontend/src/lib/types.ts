@@ -353,6 +353,28 @@ export interface IncidentActionsResponse {
   actions: IncidentAction[];
 }
 
+export interface ServiceIncidentMetrics {
+  total: number;
+  open: number;
+  resolved: number;
+  critical: number;
+  warning: number;
+  mttr_seconds: number;
+  frequency_per_day: number;
+}
+
+export interface IncidentMetrics {
+  window: string;
+  total: number;
+  open: number;
+  resolved: number;
+  critical: number;
+  warning: number;
+  mttr_seconds: number;
+  frequency_per_day: number;
+  by_service: Record<string, ServiceIncidentMetrics>;
+}
+
 export interface IncidentAnalysis {
   summary: string;
   root_cause: string;

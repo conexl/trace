@@ -169,6 +169,7 @@ Response includes:
 - `POST /v1/agent/tasks/{task_id}/result`
 - `GET /v1/alerts`
 - `GET /v1/incidents`
+- `GET /v1/incidents/metrics`
 - `GET /v1/incidents/{id}`
 - `POST /v1/incidents/{id}/restart`
 - `POST /v1/incidents/{id}/disable-watchdog`
@@ -269,10 +270,38 @@ Recent alerts are persisted in MongoDB when `HOMELYTICS_MONGO_URI` is configured
 curl -H 'Authorization: Bearer dev-admin-token' http://localhost:8080/v1/alerts
 ```
 
-Optional Telegram notifications:
+Optional legacy Telegram alert notifications from the backend process:
 
 ```bash
 HOMELYTICS_TELEGRAM_BOT_TOKEN='123:abc' \
 HOMELYTICS_TELEGRAM_CHAT_ID='123456' \
 go run ./cmd/backend
 ```
+
+## Incident Metrics
+
+Incident reliability metrics are calculated server-side from the incident store:
+
+```bash
+curl -H 'Authorization: Bearer dev-admin-token' \
+  'http://localhost:8080/v1/incidents/metrics?window=7d'
+```
+
+The response includes total/open/resolved counts, critical/warning counts, MTTR in seconds, incident frequency per day, and the same breakdown per service. Add `server_id=<id>` to scope the calculation to one server.
+
+## Standalone Incident Notifications
+
+Incident notifications can run as a separate process on another server. The backend publishes `incident.*` events to Redis channel `events`; the worker subscribes to that channel and sends Telegram messages. This keeps Telegram outages away from the core ingest/API path.
+
+```bash
+HOMELYTICS_REDIS_ADDR=localhost:6379 \
+HOMELYTICS_NOTIFICATIONS_TELEGRAM_BOT_TOKEN='123:abc' \
+HOMELYTICS_NOTIFICATIONS_TELEGRAM_CHAT_ID='123456' \
+go run ./cmd/notifications
+```
+
+The worker currently sends notifications for:
+
+- `incident.created`
+- `incident.resolved`
+- `incident.action`

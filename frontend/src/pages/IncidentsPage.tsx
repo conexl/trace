@@ -1,11 +1,11 @@
 import * as React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, CheckCircle2, Clock, Radio, Search, ShieldAlert, Sparkles } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Radio, Search, ShieldAlert, Sparkles, TimerReset } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { IncidentDrawer } from '@/components/IncidentDrawer';
 import { useAuth } from '@/lib/auth';
-import { getIncident, listIncidents, subscribeToEvents } from '@/lib/api';
-import type { Incident } from '@/lib/types';
+import { getIncident, getIncidentMetrics, listIncidents, subscribeToEvents } from '@/lib/api';
+import type { Incident, IncidentMetrics } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 type StatusFilter = 'all' | 'open' | 'resolved' | 'suppressed';
@@ -36,9 +36,17 @@ function formatRelative(timestamp: string) {
   return new Date(timestamp).toLocaleDateString();
 }
 
+function formatDuration(seconds: number) {
+  if (!seconds) return 'n/a';
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+  return `${(seconds / 3600).toFixed(seconds < 36_000 ? 1 : 0)}h`;
+}
+
 export function IncidentsPage() {
   const { isAuthenticated } = useAuth();
   const [incidents, setIncidents] = React.useState<Incident[]>([]);
+  const [metrics, setMetrics] = React.useState<IncidentMetrics | null>(null);
   const [selectedIncident, setSelectedIncident] = React.useState<Incident | null>(null);
   const [status, setStatus] = React.useState<StatusFilter>('all');
   const [severity, setSeverity] = React.useState<SeverityFilter>('all');
@@ -49,8 +57,12 @@ export function IncidentsPage() {
 
   const refresh = React.useCallback(async () => {
     try {
-      const res = await listIncidents(undefined, 100);
-      setIncidents(res.incidents);
+      const [incidentRes, metricsRes] = await Promise.all([
+        listIncidents(undefined, 100),
+        getIncidentMetrics('7d'),
+      ]);
+      setIncidents(incidentRes.incidents);
+      setMetrics(metricsRes);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load incidents');
@@ -73,6 +85,7 @@ export function IncidentsPage() {
       if (incident?.id) {
         setIncidents((items) => upsertIncident(items, incident));
         setSelectedIncident((current) => (current?.id === incident.id ? incident : current));
+        getIncidentMetrics('7d').then(setMetrics).catch(() => {});
         return;
       }
       refresh();
@@ -95,6 +108,13 @@ export function IncidentsPage() {
     critical: incidents.filter((incident) => incident.severity === 'critical').length,
     resolved: incidents.filter((incident) => incident.status === 'resolved').length,
   }), [incidents]);
+
+  const noisyServices = React.useMemo(() => {
+    if (!metrics) return [];
+    return Object.entries(metrics.by_service)
+      .sort(([, a], [, b]) => b.frequency_per_day - a.frequency_per_day)
+      .slice(0, 3);
+  }, [metrics]);
 
   const openIncident = async (incident: Incident) => {
     setSelectedIncident(incident);
@@ -129,12 +149,40 @@ export function IncidentsPage() {
             Service failures, watchdog actions, AI analysis, and recovery timeline in one place.
           </p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-3">
-          <Metric label="Open" value={counts.open} tone="red" />
-          <Metric label="Critical" value={counts.critical} tone="amber" />
-          <Metric label="Resolved" value={counts.resolved} tone="green" />
+        <div className="grid gap-2 sm:grid-cols-4">
+          <Metric label="MTTR" value={formatDuration(metrics?.mttr_seconds ?? 0)} tone="green" />
+          <Metric label="Frequency" value={`${(metrics?.frequency_per_day ?? 0).toFixed(1)}/day`} tone="amber" />
+          <Metric label="Open" value={metrics?.open ?? counts.open} tone="red" />
+          <Metric label="Critical" value={metrics?.critical ?? counts.critical} tone="amber" />
         </div>
       </div>
+
+      <Card className="mb-4 border border-border/80 bg-surface/80 p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl border border-accent/20 bg-accent/10 p-2 text-accent">
+              <TimerReset className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="text-sm font-medium text-active">Incident metrics · {metrics?.window ?? '7d'}</div>
+              <p className="text-xs text-muted">
+                MTTR is calculated from resolved incidents; frequency uses all incidents in the rolling window.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {noisyServices.length === 0 ? (
+              <span className="rounded-full border border-border px-3 py-1 text-[10px] uppercase tracking-wider text-muted">
+                no service hotspots
+              </span>
+            ) : noisyServices.map(([service, serviceMetrics]) => (
+              <span key={service} className="rounded-full border border-border bg-canvas/60 px-3 py-1 text-[10px] uppercase tracking-wider text-muted">
+                {service}: {serviceMetrics.frequency_per_day.toFixed(1)}/day
+              </span>
+            ))}
+          </div>
+        </div>
+      </Card>
 
       <Card className="mb-4 border border-border/80 bg-surface/80 p-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -254,7 +302,7 @@ function FilterButton({ active, children, onClick }: { active: boolean; children
   );
 }
 
-function Metric({ label, value, tone }: { label: string; value: number; tone: 'red' | 'amber' | 'green' }) {
+function Metric({ label, value, tone }: { label: string; value: React.ReactNode; tone: 'red' | 'amber' | 'green' }) {
   const tones = {
     red: 'border-red-400/20 bg-red-400/10 text-red-300',
     amber: 'border-amber-500/20 bg-amber-500/10 text-amber-300',

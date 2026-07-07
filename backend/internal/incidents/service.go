@@ -191,6 +191,85 @@ func (s *Service) ListIncidents(ctx context.Context, serverID string, limit int)
 	return s.store.Recent(ctx, serverID, limit)
 }
 
+// Metrics returns incident reliability metrics for a server or whole account.
+func (s *Service) Metrics(ctx context.Context, serverID string, window time.Duration) (*Metrics, error) {
+	if window <= 0 {
+		window = 7 * 24 * time.Hour
+	}
+	since := time.Now().UTC().Add(-window)
+	items, err := s.store.Range(ctx, serverID, since)
+	if err != nil {
+		return nil, err
+	}
+
+	metrics := &Metrics{
+		Window:    formatWindow(window),
+		ByService: make(map[string]ServiceMetrics),
+	}
+
+	var resolvedDuration time.Duration
+	var resolvedCount int
+	serviceDurations := make(map[string]time.Duration)
+	serviceResolvedCounts := make(map[string]int)
+
+	for _, incident := range items {
+		metrics.Total++
+		service := incident.ServiceName
+		if service == "" {
+			service = "unknown"
+		}
+		serviceMetrics := metrics.ByService[service]
+		serviceMetrics.Total++
+
+		switch incident.Status {
+		case "open", "investigating":
+			metrics.Open++
+			serviceMetrics.Open++
+		case "resolved":
+			metrics.Resolved++
+			serviceMetrics.Resolved++
+		}
+
+		switch incident.Severity {
+		case "critical":
+			metrics.Critical++
+			serviceMetrics.Critical++
+		case "warning":
+			metrics.Warning++
+			serviceMetrics.Warning++
+		}
+
+		if incident.ResolvedAt != nil && incident.ResolvedAt.After(incident.CreatedAt) {
+			duration := incident.ResolvedAt.Sub(incident.CreatedAt)
+			resolvedDuration += duration
+			resolvedCount++
+			serviceDurations[service] += duration
+			serviceResolvedCounts[service]++
+		}
+
+		metrics.ByService[service] = serviceMetrics
+	}
+
+	windowDays := window.Hours() / 24
+	if windowDays <= 0 {
+		windowDays = 1
+	}
+	metrics.FrequencyPerDay = float64(metrics.Total) / windowDays
+	if resolvedCount > 0 {
+		metrics.MTTRSeconds = resolvedDuration.Seconds() / float64(resolvedCount)
+	}
+
+	for service, serviceMetrics := range metrics.ByService {
+		serviceMetrics.FrequencyPerDay = float64(serviceMetrics.Total) / windowDays
+		if count := serviceResolvedCounts[service]; count > 0 {
+			serviceMetrics.MTTRSeconds = serviceDurations[service].Seconds() / float64(count)
+		}
+		metrics.ByService[service] = serviceMetrics
+	}
+
+	return metrics, nil
+}
+
 func (s *Service) publishIncident(ctx context.Context, eventType string, incident *Incident) {
 	payload, err := json.Marshal(map[string]any{
 		"type": eventType,
@@ -209,6 +288,13 @@ func isProcessEvent(eventType string) bool {
 		return true
 	}
 	return false
+}
+
+func formatWindow(window time.Duration) string {
+	if window%(24*time.Hour) == 0 {
+		return fmt.Sprintf("%dd", int(window/(24*time.Hour)))
+	}
+	return window.String()
 }
 
 func getTimelineType(event domain.AgentEvent) string {

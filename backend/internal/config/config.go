@@ -13,16 +13,17 @@ import (
 var Module = fx.Module("config", fx.Provide(Load))
 
 type Config struct {
-	HTTP        HTTPConfig
-	TLS         TLSConfig
-	Auth        AuthConfig
-	Pairing     PairingConfig
-	State       StateConfig
-	Mongo       MongoConfig
-	Redis       RedisConfig
-	Alerts      AlertsConfig
-	AI          AIConfig
-	Environment string
+	HTTP          HTTPConfig
+	TLS           TLSConfig
+	Auth          AuthConfig
+	Pairing       PairingConfig
+	State         StateConfig
+	Mongo         MongoConfig
+	Redis         RedisConfig
+	Alerts        AlertsConfig
+	Notifications NotificationsConfig
+	AI            AIConfig
+	Environment   string
 }
 
 type HTTPConfig struct {
@@ -82,6 +83,13 @@ type RedisConfig struct {
 
 type AlertsConfig struct {
 	MemoryLimit      int
+	TelegramBotToken string
+	TelegramChatID   string
+}
+
+type NotificationsConfig struct {
+	EventChannel     string
+	SendTimeout      time.Duration
 	TelegramBotToken string
 	TelegramChatID   string
 }
@@ -147,6 +155,12 @@ func Load() (Config, error) {
 			TelegramBotToken: os.Getenv("HOMELYTICS_TELEGRAM_BOT_TOKEN"),
 			TelegramChatID:   os.Getenv("HOMELYTICS_TELEGRAM_CHAT_ID"),
 		},
+		Notifications: NotificationsConfig{
+			EventChannel:     env("HOMELYTICS_NOTIFICATIONS_EVENT_CHANNEL", "events"),
+			SendTimeout:      envDuration("HOMELYTICS_NOTIFICATIONS_SEND_TIMEOUT", 5*time.Second),
+			TelegramBotToken: env("HOMELYTICS_NOTIFICATIONS_TELEGRAM_BOT_TOKEN", os.Getenv("HOMELYTICS_TELEGRAM_BOT_TOKEN")),
+			TelegramChatID:   env("HOMELYTICS_NOTIFICATIONS_TELEGRAM_CHAT_ID", os.Getenv("HOMELYTICS_TELEGRAM_CHAT_ID")),
+		},
 		AI: AIConfig{
 			APIKey:  os.Getenv("AI_API_KEY"),
 			BaseURL: os.Getenv("AI_BASE_URL"),
@@ -193,6 +207,12 @@ func Load() (Config, error) {
 	}
 	if cfg.Alerts.MemoryLimit <= 0 {
 		return Config{}, fmt.Errorf("HOMELYTICS_ALERT_MEMORY_LIMIT must be positive")
+	}
+	if cfg.Notifications.EventChannel == "" {
+		return Config{}, fmt.Errorf("HOMELYTICS_NOTIFICATIONS_EVENT_CHANNEL must not be empty")
+	}
+	if cfg.Notifications.SendTimeout <= 0 {
+		return Config{}, fmt.Errorf("HOMELYTICS_NOTIFICATIONS_SEND_TIMEOUT must be positive")
 	}
 	if cfg.Mongo.Database == "" {
 		return Config{}, fmt.Errorf("HOMELYTICS_MONGO_DATABASE must not be empty")

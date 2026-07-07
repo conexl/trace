@@ -10,6 +10,7 @@ import type {
   Incident,
   IncidentAction,
   IncidentAnalysis,
+  IncidentMetrics,
 } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
@@ -183,6 +184,12 @@ export function listIncidents(serverId?: string, limit = 50): Promise<{ incident
   let url = `/v1/incidents?limit=${limit}`;
   if (serverId) url += `&server_id=${encodeURIComponent(serverId)}`;
   return request<{ incidents: Incident[] }>(url);
+}
+
+export function getIncidentMetrics(window = '7d', serverId?: string): Promise<IncidentMetrics> {
+  const params = new URLSearchParams({ window });
+  if (serverId) params.set('server_id', serverId);
+  return request<IncidentMetrics>(`/v1/incidents/metrics?${params.toString()}`);
 }
 
 export function getIncident(id: string): Promise<Incident> {

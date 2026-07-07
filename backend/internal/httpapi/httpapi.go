@@ -110,6 +110,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /v1/agent/tasks/", s.requireAgent(s.handleCompleteTask))
 	s.mux.HandleFunc("GET /v1/alerts", s.requireAuth(s.handleListAlerts))
 	s.mux.HandleFunc("GET /v1/incidents", s.requireAuth(s.handleListIncidents))
+	s.mux.HandleFunc("GET /v1/incidents/metrics", s.requireAuth(s.handleIncidentMetrics))
 	s.mux.HandleFunc("GET /v1/incidents/actions", s.requireAuth(s.handleGetIncidentActions))
 	s.mux.HandleFunc("GET /v1/incidents/", s.requireAuth(s.handleGetIncident))
 	s.mux.HandleFunc("POST /v1/incidents/", s.requireAdmin(s.handleIncidentAction))
@@ -848,6 +849,21 @@ func (s *Server) handleGetIncidentActions(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, map[string]any{"actions": incidents.AvailableActions()})
 }
 
+func (s *Server) handleIncidentMetrics(w http.ResponseWriter, r *http.Request) {
+	serverID := r.URL.Query().Get("server_id")
+	window, err := parseIncidentMetricsWindow(r.URL.Query().Get("window"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	metrics, err := s.incidents.Metrics(r.Context(), serverID, window)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "incident metrics failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, metrics)
+}
+
 func (s *Server) handleGetIncident(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, "/v1/incidents/")
 	if id == "" || strings.Contains(id, "/") {
@@ -987,6 +1003,24 @@ func (s *Server) handleAnalyzeIncident(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, analysis)
+}
+
+func parseIncidentMetricsWindow(raw string) (time.Duration, error) {
+	if raw == "" {
+		return 7 * 24 * time.Hour, nil
+	}
+	if strings.HasSuffix(raw, "d") {
+		days, err := strconv.Atoi(strings.TrimSuffix(raw, "d"))
+		if err != nil || days <= 0 || days > 365 {
+			return 0, fmt.Errorf("window must be between 1d and 365d")
+		}
+		return time.Duration(days) * 24 * time.Hour, nil
+	}
+	window, err := time.ParseDuration(raw)
+	if err != nil || window <= 0 || window > 365*24*time.Hour {
+		return 0, fmt.Errorf("window must be a positive duration up to 365d")
+	}
+	return window, nil
 }
 
 func (s *Server) userEmail(r *http.Request) string {

@@ -17,6 +17,7 @@ type Store interface {
 	Save(ctx context.Context, incident Incident) error
 	Get(ctx context.Context, id string) (*Incident, error)
 	Recent(ctx context.Context, serverID string, limit int) ([]Incident, error)
+	Range(ctx context.Context, serverID string, since time.Time) ([]Incident, error)
 	GetOpen(ctx context.Context, serverID, serviceName string) (*Incident, error)
 	AddTimelineEvent(ctx context.Context, incidentID string, event TimelineEvent) error
 	UpdateStatus(ctx context.Context, incidentID, status string, resolvedAt *time.Time) error
@@ -61,6 +62,28 @@ func (s *MemoryStore) Recent(ctx context.Context, serverID string, limit int) ([
 	}
 	if limit > 0 && len(result) > limit {
 		result = result[:limit]
+	}
+	return result, nil
+}
+
+func (s *MemoryStore) Range(ctx context.Context, serverID string, since time.Time) ([]Incident, error) {
+	var result []Incident
+	for _, incident := range s.incidents {
+		if serverID != "" && incident.ServerID != serverID {
+			continue
+		}
+		if incident.CreatedAt.Before(since) {
+			continue
+		}
+		result = append(result, *incident)
+	}
+	// Sort by created_at desc to match Recent.
+	for i := 0; i < len(result)-1; i++ {
+		for j := i + 1; j < len(result); j++ {
+			if result[i].CreatedAt.Before(result[j].CreatedAt) {
+				result[i], result[j] = result[j], result[i]
+			}
+		}
 	}
 	return result, nil
 }
@@ -159,6 +182,23 @@ func (s *MongoStore) Recent(ctx context.Context, serverID string, limit int) ([]
 		filter["server_id"] = serverID
 	}
 	cursor, err := s.incidents.Find(ctx, filter, options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}}).SetLimit(int64(limit)))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+	var incidents []Incident
+	if err := cursor.All(ctx, &incidents); err != nil {
+		return nil, err
+	}
+	return incidents, nil
+}
+
+func (s *MongoStore) Range(ctx context.Context, serverID string, since time.Time) ([]Incident, error) {
+	filter := bson.M{"created_at": bson.M{"$gte": since}}
+	if serverID != "" {
+		filter["server_id"] = serverID
+	}
+	cursor, err := s.incidents.Find(ctx, filter, options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}}))
 	if err != nil {
 		return nil, err
 	}
