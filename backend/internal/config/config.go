@@ -88,10 +88,14 @@ type AlertsConfig struct {
 }
 
 type NotificationsConfig struct {
-	EventChannel     string
-	SendTimeout      time.Duration
-	TelegramBotToken string
-	TelegramChatID   string
+	EventChannel         string
+	SendTimeout          time.Duration
+	LinkTTL              time.Duration
+	TelegramBotUsername  string
+	TelegramBotToken     string
+	TelegramChatID       string
+	TelegramPollInterval time.Duration
+	TelegramPollTimeout  time.Duration
 }
 
 type AIConfig struct {
@@ -156,10 +160,14 @@ func Load() (Config, error) {
 			TelegramChatID:   os.Getenv("HOMELYTICS_TELEGRAM_CHAT_ID"),
 		},
 		Notifications: NotificationsConfig{
-			EventChannel:     env("HOMELYTICS_NOTIFICATIONS_EVENT_CHANNEL", "events"),
-			SendTimeout:      envDuration("HOMELYTICS_NOTIFICATIONS_SEND_TIMEOUT", 5*time.Second),
-			TelegramBotToken: env("HOMELYTICS_NOTIFICATIONS_TELEGRAM_BOT_TOKEN", os.Getenv("HOMELYTICS_TELEGRAM_BOT_TOKEN")),
-			TelegramChatID:   env("HOMELYTICS_NOTIFICATIONS_TELEGRAM_CHAT_ID", os.Getenv("HOMELYTICS_TELEGRAM_CHAT_ID")),
+			EventChannel:         env("HOMELYTICS_NOTIFICATIONS_EVENT_CHANNEL", "events"),
+			SendTimeout:          envDuration("HOMELYTICS_NOTIFICATIONS_SEND_TIMEOUT", 5*time.Second),
+			LinkTTL:              envDuration("HOMELYTICS_NOTIFICATIONS_LINK_TTL", 10*time.Minute),
+			TelegramBotUsername:  strings.TrimPrefix(strings.TrimSpace(os.Getenv("HOMELYTICS_NOTIFICATIONS_TELEGRAM_BOT_USERNAME")), "@"),
+			TelegramBotToken:     env("HOMELYTICS_NOTIFICATIONS_TELEGRAM_BOT_TOKEN", os.Getenv("HOMELYTICS_TELEGRAM_BOT_TOKEN")),
+			TelegramChatID:       env("HOMELYTICS_NOTIFICATIONS_TELEGRAM_CHAT_ID", os.Getenv("HOMELYTICS_TELEGRAM_CHAT_ID")),
+			TelegramPollInterval: envDuration("HOMELYTICS_NOTIFICATIONS_TELEGRAM_POLL_INTERVAL", time.Second),
+			TelegramPollTimeout:  envDuration("HOMELYTICS_NOTIFICATIONS_TELEGRAM_POLL_TIMEOUT", 25*time.Second),
 		},
 		AI: AIConfig{
 			APIKey:  os.Getenv("AI_API_KEY"),
@@ -213,6 +221,15 @@ func Load() (Config, error) {
 	}
 	if cfg.Notifications.SendTimeout <= 0 {
 		return Config{}, fmt.Errorf("HOMELYTICS_NOTIFICATIONS_SEND_TIMEOUT must be positive")
+	}
+	if cfg.Notifications.LinkTTL <= 0 {
+		return Config{}, fmt.Errorf("HOMELYTICS_NOTIFICATIONS_LINK_TTL must be positive")
+	}
+	if cfg.Notifications.TelegramPollInterval <= 0 {
+		return Config{}, fmt.Errorf("HOMELYTICS_NOTIFICATIONS_TELEGRAM_POLL_INTERVAL must be positive")
+	}
+	if cfg.Notifications.TelegramPollTimeout <= 0 {
+		return Config{}, fmt.Errorf("HOMELYTICS_NOTIFICATIONS_TELEGRAM_POLL_TIMEOUT must be positive")
 	}
 	if cfg.Mongo.Database == "" {
 		return Config{}, fmt.Errorf("HOMELYTICS_MONGO_DATABASE must not be empty")

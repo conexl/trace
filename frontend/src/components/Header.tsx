@@ -5,6 +5,7 @@ import { AlertTriangle, Bell, LogIn, LogOut, User } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
+import { TelegramConnectButton } from '@/components/TelegramConnectButton';
 
 interface HeaderProps {
   onLoginClick: () => void;
@@ -37,6 +38,7 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
           >
             <Bell className="h-4 w-4" />
           </Button>
+          <TelegramConnectButton />
         </>
       )}
       <AnimatePresence mode="wait">

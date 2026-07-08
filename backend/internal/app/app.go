@@ -18,6 +18,7 @@ import (
 	"backend/internal/serverconfig"
 	"backend/internal/store"
 	"backend/internal/tasks"
+	"backend/internal/telegram"
 	"backend/internal/users"
 
 	"go.uber.org/fx"
@@ -34,6 +35,7 @@ func New() *fx.App {
 		store.Module,
 		serverconfig.Module,
 		tasks.Module,
+		telegram.Module,
 		alerts.Module,
 		incidents.Module,
 		ai.Module,

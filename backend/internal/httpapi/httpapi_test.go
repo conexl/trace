@@ -2,11 +2,13 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,6 +26,7 @@ import (
 	"backend/internal/serverconfig"
 	"backend/internal/store"
 	"backend/internal/tasks"
+	"backend/internal/telegram"
 	"backend/internal/users"
 
 	"go.uber.org/zap"
@@ -64,7 +67,7 @@ func newTestServer(t *testing.T, cfg config.Config) *Server {
 	auditStore := audit.NewMemoryStore()
 	aiClient := ai.NewClient(ai.ClientParams{Config: cfg, Logger: zap.NewNop()})
 	aiAnalyzer := ai.NewAnalyzer(aiClient, zaptest.NewLogger(t))
-	return NewServer(cfg, memory, ingestService, pairing, tasks.NewMemoryStore(), alertStore, incidentService, aiAnalyzer, presenceService, authService, auditStore, pubsubService, configStore, nil, zaptest.NewLogger(t))
+	return NewServer(cfg, memory, ingestService, pairing, tasks.NewMemoryStore(), alertStore, incidentService, aiAnalyzer, presenceService, authService, auditStore, pubsubService, configStore, telegram.NewMemoryStore(), nil, zaptest.NewLogger(t))
 }
 
 func TestIngestAndReadServerState(t *testing.T) {
@@ -554,6 +557,74 @@ func TestAdminTokenCanCreateAdminUser(t *testing.T) {
 	server.securityHeaders(server.mux).ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("admin token created user should access admin endpoint: status = %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestTelegramNotificationLinkLifecycle(t *testing.T) {
+	cfg := config.Config{
+		State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10},
+		Auth:  config.AuthConfig{AdminToken: "admin-token"},
+		Notifications: config.NotificationsConfig{
+			TelegramBotUsername: "TraceDemoBot",
+			LinkTTL:             10 * time.Minute,
+		},
+	}
+	server := newTestServer(t, cfg)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/notifications/telegram", nil)
+	req.Header.Set("Authorization", "Bearer admin-token")
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status code = %d body=%s", w.Code, w.Body.String())
+	}
+	var status struct {
+		Connected bool `json:"connected"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &status); err != nil {
+		t.Fatal(err)
+	}
+	if status.Connected {
+		t.Fatalf("status = %#v", status)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/v1/notifications/telegram/link", nil)
+	req.Header.Set("Authorization", "Bearer admin-token")
+	w = httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("link code = %d body=%s", w.Code, w.Body.String())
+	}
+	var link struct {
+		StartURL string `json:"start_url"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &link); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(link.StartURL, "https://t.me/TraceDemoBot?start=") {
+		t.Fatalf("start_url = %q", link.StartURL)
+	}
+	token := strings.TrimPrefix(link.StartURL, "https://t.me/TraceDemoBot?start=")
+	if _, err := server.telegramStore.ClaimLink(context.Background(), token, telegram.Chat{ID: 123, Type: "private", Username: "owner"}); err != nil {
+		t.Fatalf("ClaimLink() error = %v", err)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/notifications/telegram", nil)
+	req.Header.Set("Authorization", "Bearer admin-token")
+	w = httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status code = %d body=%s", w.Code, w.Body.String())
+	}
+	var connected struct {
+		Connected bool          `json:"connected"`
+		Chat      telegram.Chat `json:"chat"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &connected); err != nil {
+		t.Fatal(err)
+	}
+	if !connected.Connected || connected.Chat.ID != 123 {
+		t.Fatalf("connected = %#v", connected)
 	}
 }
 

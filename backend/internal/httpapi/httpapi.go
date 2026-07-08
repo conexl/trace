@@ -29,6 +29,7 @@ import (
 	"backend/internal/serverconfig"
 	"backend/internal/store"
 	"backend/internal/tasks"
+	"backend/internal/telegram"
 
 	redis "github.com/redis/go-redis/v9"
 	"go.uber.org/fx"
@@ -51,6 +52,7 @@ type Server struct {
 	audit           audit.Store
 	pubsub          *pubsub.Service
 	configStore     serverconfig.Store
+	telegramStore   telegram.Store
 	logger          *zap.Logger
 	mux             *http.ServeMux
 	loginLimiter    ratelimit.Limiter
@@ -59,7 +61,7 @@ type Server struct {
 
 const sessionCookieName = "homelytics_session"
 
-func NewServer(cfg config.Config, store store.Store, ingest *ingest.Service, pairing *security.PairingService, taskStore tasks.Store, alertStore alerts.Store, incidentService *incidents.Service, aiAnalyzer *ai.Analyzer, presenceService *presence.Service, authService *auth.Service, auditStore audit.Store, pubsubService *pubsub.Service, configStore serverconfig.Store, redisClient *redis.Client, logger *zap.Logger) *Server {
+func NewServer(cfg config.Config, store store.Store, ingest *ingest.Service, pairing *security.PairingService, taskStore tasks.Store, alertStore alerts.Store, incidentService *incidents.Service, aiAnalyzer *ai.Analyzer, presenceService *presence.Service, authService *auth.Service, auditStore audit.Store, pubsubService *pubsub.Service, configStore serverconfig.Store, telegramStore telegram.Store, redisClient *redis.Client, logger *zap.Logger) *Server {
 	var loginLimiter, registerLimiter ratelimit.Limiter
 	if redisClient != nil {
 		loginLimiter = ratelimit.NewRedis(redisClient, cfg.Auth.LoginRateLimit, cfg.Auth.LoginRateWindow, "login")
@@ -74,7 +76,7 @@ func NewServer(cfg config.Config, store store.Store, ingest *ingest.Service, pai
 	}
 
 	server := &Server{
-		cfg: cfg, store: store, ingest: ingest, pairing: pairing, tasks: taskStore, alerts: alertStore, incidents: incidentService, aiAnalyzer: aiAnalyzer, presence: presenceService, auth: authService, audit: auditStore, pubsub: pubsubService, configStore: configStore,
+		cfg: cfg, store: store, ingest: ingest, pairing: pairing, tasks: taskStore, alerts: alertStore, incidents: incidentService, aiAnalyzer: aiAnalyzer, presence: presenceService, auth: authService, audit: auditStore, pubsub: pubsubService, configStore: configStore, telegramStore: telegramStore,
 		logger:          logger.Named("http"),
 		mux:             http.NewServeMux(),
 		loginLimiter:    loginLimiter,
@@ -103,6 +105,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /v1/auth/register", ratelimit.Middleware(s.registerLimiter, s.cfg.HTTP.TrustForwardedHeaders, s.handleRegister))
 	s.mux.HandleFunc("POST /v1/auth/logout", s.handleLogout)
 	s.mux.HandleFunc("GET /v1/auth/me", s.requireAuth(s.handleAuthMe))
+	s.mux.HandleFunc("GET /v1/notifications/telegram", s.requireAuth(s.handleGetTelegramNotificationStatus))
+	s.mux.HandleFunc("POST /v1/notifications/telegram/link", s.requireAuth(s.handleCreateTelegramNotificationLink))
+	s.mux.HandleFunc("DELETE /v1/notifications/telegram", s.requireAuth(s.handleDeleteTelegramNotificationLink))
 	s.mux.HandleFunc("POST /v1/pairing/claim", s.handlePairingClaim)
 	s.mux.HandleFunc("POST /v1/agent/snapshots", s.requireAgent(s.handleIngest))
 	s.mux.HandleFunc("GET /v1/agent/tasks", s.requireAgent(s.handlePollTasks))
@@ -193,6 +198,54 @@ func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 		"email": session.Email,
 		"role":  session.Role,
 	})
+}
+
+func (s *Server) handleGetTelegramNotificationStatus(w http.ResponseWriter, r *http.Request) {
+	email := s.userEmail(r)
+	recipient, err := s.telegramStore.GetRecipient(r.Context(), email)
+	if err != nil {
+		if errors.Is(err, telegram.ErrNotFound) {
+			writeJSON(w, http.StatusOK, map[string]any{
+				"connected": false,
+			})
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "get telegram status failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"connected": true,
+		"chat":      recipient.Chat,
+		"linked_at": recipient.LinkedAt,
+	})
+}
+
+func (s *Server) handleCreateTelegramNotificationLink(w http.ResponseWriter, r *http.Request) {
+	botUsername := strings.TrimSpace(s.cfg.Notifications.TelegramBotUsername)
+	if botUsername == "" {
+		writeError(w, http.StatusServiceUnavailable, "telegram bot username is not configured")
+		return
+	}
+
+	link, err := s.telegramStore.CreateLink(r.Context(), s.userEmail(r), s.cfg.Notifications.LinkTTL)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "create telegram link failed")
+		return
+	}
+	startURL := fmt.Sprintf("https://t.me/%s?start=%s", botUsername, link.Token)
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"bot_username": botUsername,
+		"start_url":    startURL,
+		"expires_at":   link.ExpiresAt,
+	})
+}
+
+func (s *Server) handleDeleteTelegramNotificationLink(w http.ResponseWriter, r *http.Request) {
+	if err := s.telegramStore.DeleteRecipient(r.Context(), s.userEmail(r)); err != nil {
+		writeError(w, http.StatusInternalServerError, "delete telegram link failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
@@ -778,7 +831,7 @@ func (s *Server) applyCORS(w http.ResponseWriter, r *http.Request) bool {
 	header := w.Header()
 	header.Set("Vary", "Origin")
 	header.Set("Access-Control-Allow-Origin", allowedOrigin)
-	header.Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	header.Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 	header.Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 	header.Set("Access-Control-Allow-Credentials", "true")
 	header.Set("Access-Control-Max-Age", "600")

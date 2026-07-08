@@ -382,3 +382,23 @@ export interface IncidentAnalysis {
   suggestions: string[];
   confidence: number;
 }
+
+export interface TelegramChat {
+  id: number;
+  type?: string;
+  username?: string;
+  title?: string;
+  first_name?: string;
+}
+
+export interface TelegramNotificationStatus {
+  connected: boolean;
+  chat?: TelegramChat;
+  linked_at?: string;
+}
+
+export interface TelegramNotificationLink {
+  bot_username: string;
+  start_url: string;
+  expires_at: string;
+}

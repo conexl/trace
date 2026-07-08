@@ -11,6 +11,8 @@ import type {
   IncidentAction,
   IncidentAnalysis,
   IncidentMetrics,
+  TelegramNotificationLink,
+  TelegramNotificationStatus,
 } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
@@ -237,6 +239,22 @@ export const fallbackIncidentActions: IncidentAction[] = [
 
 export function getIncidentActions(): Promise<{ actions: IncidentAction[] }> {
   return request<{ actions: IncidentAction[] }>('/v1/incidents/actions');
+}
+
+export function getTelegramNotificationStatus(): Promise<TelegramNotificationStatus> {
+  return request<TelegramNotificationStatus>('/v1/notifications/telegram');
+}
+
+export function createTelegramNotificationLink(): Promise<TelegramNotificationLink> {
+  return request<TelegramNotificationLink>('/v1/notifications/telegram/link', {
+    method: 'POST',
+  });
+}
+
+export function deleteTelegramNotificationLink(): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>('/v1/notifications/telegram', {
+    method: 'DELETE',
+  });
 }
 
 export { API_BASE_URL };

@@ -60,7 +60,7 @@ Start the standalone Telegram notifications worker too:
 
 ```bash
 HOMELYTICS_NOTIFICATIONS_TELEGRAM_BOT_TOKEN='123:abc' \
-HOMELYTICS_NOTIFICATIONS_TELEGRAM_CHAT_ID='123456' \
+HOMELYTICS_NOTIFICATIONS_TELEGRAM_BOT_USERNAME='TraceDemoBot' \
 docker compose --profile notifications up --build
 ```
 
@@ -146,6 +146,14 @@ If Redis is not configured, the backend uses an in-memory fallback and still der
 - `HOMELYTICS_ALERT_MEMORY_LIMIT`, default `200`
 - `HOMELYTICS_TELEGRAM_BOT_TOKEN`, optional
 - `HOMELYTICS_TELEGRAM_CHAT_ID`, optional
+- `HOMELYTICS_NOTIFICATIONS_EVENT_CHANNEL`, default `events`
+- `HOMELYTICS_NOTIFICATIONS_SEND_TIMEOUT`, default `5s`
+- `HOMELYTICS_NOTIFICATIONS_LINK_TTL`, default `10m`
+- `HOMELYTICS_NOTIFICATIONS_TELEGRAM_BOT_USERNAME`, required for frontend Telegram linking
+- `HOMELYTICS_NOTIFICATIONS_TELEGRAM_BOT_TOKEN`, required for the standalone notifications worker
+- `HOMELYTICS_NOTIFICATIONS_TELEGRAM_CHAT_ID`, optional legacy single-chat fallback when no users are linked
+- `HOMELYTICS_NOTIFICATIONS_TELEGRAM_POLL_INTERVAL`, default `1s`
+- `HOMELYTICS_NOTIFICATIONS_TELEGRAM_POLL_TIMEOUT`, default `25s`
 - `AI_API_KEY`, required for AI Incident Analyst (DeepSeek by default)
 - `AI_BASE_URL`, default `https://api.deepseek.com`
 - `AI_MODEL`, default `deepseek-chat`
@@ -196,6 +204,9 @@ Response includes:
 - `POST /v1/incidents/{id}/diagnostics`
 - `POST /v1/incidents/{id}/rollback-config`
 - `POST /v1/incidents/{id}/analyze`
+- `GET /v1/notifications/telegram`
+- `POST /v1/notifications/telegram/link`
+- `DELETE /v1/notifications/telegram`
 - `GET /v1/servers`
 - `GET /v1/servers/{id}`
 - `GET /v1/servers/{id}/config`
@@ -328,10 +339,21 @@ Incident notifications can run as a separate process on another server. The back
 
 ```bash
 HOMELYTICS_REDIS_ADDR=localhost:6379 \
+HOMELYTICS_MONGO_URI='mongodb://localhost:27017' \
+HOMELYTICS_MONGO_DATABASE='homelytics' \
 HOMELYTICS_NOTIFICATIONS_TELEGRAM_BOT_TOKEN='123:abc' \
-HOMELYTICS_NOTIFICATIONS_TELEGRAM_CHAT_ID='123456' \
+HOMELYTICS_NOTIFICATIONS_TELEGRAM_BOT_USERNAME='TraceDemoBot' \
 go run ./cmd/notifications
 ```
+
+Users connect Telegram through a one-time deep link:
+
+```bash
+curl -X POST http://localhost:8080/v1/notifications/telegram/link \
+  -H 'Authorization: Bearer dev-admin-token'
+```
+
+The response contains `https://t.me/<bot>?start=<token>`. When the user opens it and presses Start, the worker receives `/start <token>`, claims the token, stores that user's `chat_id`, and future incident notifications are sent to linked users. Backend and worker must share the same Mongo database for this flow because the token is created by the API process and claimed by the worker process. `HOMELYTICS_NOTIFICATIONS_TELEGRAM_CHAT_ID` remains available only as a legacy single-chat fallback when no users are linked.
 
 The worker currently sends notifications for:
 
