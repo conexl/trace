@@ -21,23 +21,23 @@ import (
 )
 
 type Agent struct {
-	cfg            config.Config
-	configPath     string
-	system         *collectors.SystemCollector
-	network        *collectors.NetworkCollector
-	processes      *collectors.ProcessCollector
-	logs           *collectors.LogCollector
-	hardware       *collectors.HardwareCollector
-	serviceManager collectors.ServiceManager
-	buffer         logger.BufferedSink
-	transport      transport.Client
-	tasks          *tasksclient.Client
-	configClient   ConfigClient
-	updater        updaterClient
-	runner         *commands.Runner
-	startTime      time.Time
-	lastConfigFetch time.Time
-	lastUploadSuccess bool
+	cfg                  config.Config
+	configPath           string
+	system               *collectors.SystemCollector
+	network              *collectors.NetworkCollector
+	processes            *collectors.ProcessCollector
+	logs                 *collectors.LogCollector
+	hardware             *collectors.HardwareCollector
+	serviceManager       collectors.ServiceManager
+	buffer               logger.BufferedSink
+	transport            transport.Client
+	tasks                *tasksclient.Client
+	configClient         ConfigClient
+	updater              updaterClient
+	runner               *commands.Runner
+	startTime            time.Time
+	lastConfigFetch      time.Time
+	lastUploadSuccess    bool
 	lastServiceDiscovery time.Time
 	cachedServices       []string
 }
@@ -69,8 +69,8 @@ func NewAgent(
 ) *Agent {
 	return &Agent{
 		cfg: cfg, configPath: configPath, system: system, network: network, processes: processes, logs: logs, hardware: hardware, serviceManager: serviceManager, buffer: buffer, transport: transport, tasks: tasks, configClient: configClient, updater: updaterSvc, runner: runner,
-		startTime: time.Now(),
-		lastConfigFetch: time.Now(),
+		startTime:         time.Now(),
+		lastConfigFetch:   time.Now(),
 		lastUploadSuccess: true,
 	}
 }
@@ -244,14 +244,14 @@ func (a *Agent) collectAndPublish(ctx context.Context) error {
 	availableServices = a.cachedServices
 
 	snapshot := collectors.Snapshot{
-		AgentName: a.cfg.Agent.Name,
-		Host:      host,
-		System:    system,
-		Network:   a.network.Collect(ctx, a.cfg.Network),
-		Hardware:  a.hardware.Collect(ctx, a.cfg.Hardware),
-		Processes: processes,
-		Logs:      a.logs.Collect(ctx, a.cfg.LogStreams),
-		Events:    events,
+		AgentName:             a.cfg.Agent.Name,
+		Host:                  host,
+		System:                system,
+		Network:               a.network.Collect(ctx, a.cfg.Network),
+		Hardware:              a.hardware.Collect(ctx, a.cfg.Hardware),
+		Processes:             processes,
+		Logs:                  a.logs.Collect(ctx, a.cfg.LogStreams),
+		Events:                events,
 		AppliedConfigRevision: a.cfg.Agent.Revision,
 		AvailableServices:     availableServices,
 		Health: collectors.AgentHealth{
@@ -300,6 +300,9 @@ func (a *Agent) runTask(ctx context.Context, task tasksclient.Task) (tasksclient
 	}
 	if task.Name == "dns-recheck" {
 		return a.runDNSRecheck(ctx, task.Payload)
+	}
+	if task.Name == "diagnostics" {
+		return a.runDiagnostics(ctx, task.Payload)
 	}
 	result, runErr := a.runner.Run(ctx, task.Name)
 	return tasksclient.FromCommandResult(result, runErr), runErr
@@ -374,6 +377,43 @@ func (a *Agent) runDNSRecheck(ctx context.Context, payload tasksclient.TaskPaylo
 			break
 		}
 	}
+	return result, nil
+}
+
+func (a *Agent) runDiagnostics(ctx context.Context, payload tasksclient.TaskPayload) (tasksclient.TaskResult, error) {
+	started := time.Now()
+	result := tasksclient.TaskResult{ExitCode: 0, StartedAt: started}
+
+	host, system, systemErr := a.system.Collect(ctx)
+	processes, processEvents := a.processes.Collect(ctx, a.cfg.Processes)
+	diagnostics := map[string]any{
+		"generated_at": time.Now().UTC(),
+		"agent": map[string]any{
+			"name":           a.cfg.Agent.Name,
+			"revision":       a.cfg.Agent.Revision,
+			"uptime_seconds": time.Since(a.startTime).Seconds(),
+		},
+		"incident_id": payload.IncidentID,
+		"service":     payload.Service,
+		"host":        host,
+		"system":      system,
+		"network":     a.network.Collect(ctx, a.cfg.Network),
+		"hardware":    a.hardware.Collect(ctx, a.cfg.Hardware),
+		"processes":   processes,
+		"events":      processEvents,
+	}
+	if systemErr != nil {
+		diagnostics["system_error"] = systemErr.Error()
+	}
+
+	data, err := json.Marshal(diagnostics)
+	if err != nil {
+		result.ExitCode = 1
+		result.Error = err.Error()
+		return result, err
+	}
+	result.Stdout = string(data)
+	result.DurationMS = time.Since(started).Milliseconds()
 	return result, nil
 }
 

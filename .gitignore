@@ -2,6 +2,7 @@
 /agent/agent
 /agent/homelytics-agent
 /backend/backend
+/backend/notifications
 
 # Runtime buffers and logs
 /agent/*.jsonl
@@ -9,6 +10,9 @@
 *.log
 
 # Local secrets and generated certs
+/backend/.env
+/frontend/.env
+/.env
 /agent/certs/
 *.pem
 *.key

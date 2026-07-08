@@ -26,11 +26,11 @@ go run ./cmd/agent -config ./config.example.yaml -run-task disk-usage
 - Log tailing: bounded reads from configured files, so large logs do not explode memory.
 - Power guard: optional sleep inhibition via `systemd-inhibit` on Linux or `caffeinate` on macOS.
 - Offline buffer: snapshots are appended to durable JSONL, replayed in batches, acked only after successful upload, and corrupt lines are quarantined instead of blocking future replay.
-- Remote tasks: safe command runner for preconfigured tasks only, with JSONL audit events and a disabled-by-default shell policy.
+- Remote tasks: built-in safe tasks (`service-action`, `dns-recheck`, `diagnostics`) plus preconfigured allowlisted tasks only, with JSONL audit events and a disabled-by-default shell policy.
 
 ## Remote Execution Safety
 
-The current agent executes only named tasks from the YAML allowlist. It does not invoke a shell, rejects common shell interpreters as task executables, runs with a minimal environment, supports an optional absolute `working_dir`, and caps stdout/stderr per task. Dashboard service actions are accepted only for `processes:` entries with `remote_control: true` and a concrete `service`. Each accepted or rejected run is appended to `remote.audit_path`. Agent-side PTY shell primitives are implemented, but `remote.shell_enabled` stays rejected by config validation until mTLS identity and cloud-side authorization exist. This keeps the dangerous path present for integration work without making it accidentally reachable in demos.
+The current agent executes only built-in safe tasks or named tasks from the YAML allowlist. It does not invoke a shell, rejects common shell interpreters as task executables, runs with a minimal environment, supports an optional absolute `working_dir`, and caps stdout/stderr per task. Dashboard service actions are accepted only for `processes:` entries with `remote_control: true` and a concrete `service`. The `diagnostics` task returns a bounded JSON bundle from existing collectors instead of running arbitrary commands. Each accepted or rejected run is appended to `remote.audit_path`. Agent-side PTY shell primitives are implemented, but `remote.shell_enabled` stays rejected by config validation until mTLS identity and cloud-side authorization exist. This keeps the dangerous path present for integration work without making it accidentally reachable in demos.
 
 ## Agent Transport
 
@@ -64,4 +64,4 @@ The command writes `ca.pem`, `agent.pem`, and `agent-key.pem` with `0600` permis
 
 ## Remote Task Polling
 
-When `cloud.transport: http` and `remote.tasks_enabled: true`, the agent polls the backend every `remote.poll_every` for tasks targeting `agent.name`. Only tasks declared in the local YAML `tasks:` allowlist are executed, and every attempt is written to the audit JSONL.
+When `cloud.transport: http` and `remote.tasks_enabled: true`, the agent polls the backend every `remote.poll_every` for tasks targeting `agent.name`. Built-in safe tasks are handled by the agent; custom tasks must be declared in the local YAML `tasks:` allowlist. Every attempt is written to the audit JSONL.

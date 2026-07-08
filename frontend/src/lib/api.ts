@@ -224,16 +224,14 @@ export const fallbackIncidentActions: IncidentAction[] = [
   {
     name: 'diagnostics',
     label: 'Run Diagnostics',
-    description: 'Collect diagnostic information',
-    enabled: false,
-    coming_soon: true,
+    description: 'Collect a safe host/service diagnostic bundle',
+    enabled: true,
   },
   {
     name: 'rollback-config',
     label: 'Rollback Config',
-    description: 'Restore previous configuration',
-    enabled: false,
-    coming_soon: true,
+    description: 'Restore the previous desired agent configuration',
+    enabled: true,
   },
 ];
 

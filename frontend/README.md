@@ -48,4 +48,4 @@ Static output is written to `dist/`.
 - Live service actions are enabled only when the agent reports the process with `remote_control: true`.
 - Watchdog policy editing, add/remove service, DNS record management and agent settings are persisted through `GET/POST /v1/servers/:id/config` and pushed to agents on their next config poll.
 - DNS recheck queues a `dns-recheck` server task for the agent.
-- Add-service discovery from the agent (listing available systemd services) is not implemented yet; in live mode the user can type a process/service name manually.
+- Add-service discovery uses `available_services` from agent snapshots when the OS exposes service lists; manual entry remains available as a fallback.

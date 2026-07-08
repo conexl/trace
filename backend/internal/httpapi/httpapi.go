@@ -573,12 +573,12 @@ func (s *Server) handleSetServerConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cfg.UpdatedAt = time.Now().UTC()
-	if err := s.configStore.Set(r.Context(), id, cfg); err != nil {
+	saved, err := s.saveDesiredConfig(r.Context(), id, cfg)
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "save server config failed")
 		return
 	}
-	_ = s.store.UpdateDesiredRevision(r.Context(), id, cfg.Revision)
-	writeJSON(w, http.StatusOK, cfg)
+	writeJSON(w, http.StatusOK, saved)
 
 	_ = s.audit.Log(r.Context(), domain.AuditLog{
 		UserEmail: s.userEmail(r),
@@ -586,6 +586,18 @@ func (s *Server) handleSetServerConfig(w http.ResponseWriter, r *http.Request) {
 		Target:    id,
 		Details:   "updated agent desired config",
 	})
+}
+
+func (s *Server) saveDesiredConfig(ctx context.Context, serverID string, cfg domain.AgentDesiredConfig) (domain.AgentDesiredConfig, error) {
+	if err := s.configStore.Set(ctx, serverID, cfg); err != nil {
+		return domain.AgentDesiredConfig{}, err
+	}
+	saved, err := s.configStore.Get(ctx, serverID)
+	if err != nil {
+		return domain.AgentDesiredConfig{}, err
+	}
+	_ = s.store.UpdateDesiredRevision(ctx, serverID, saved.Revision)
+	return saved, nil
 }
 
 func validateAgentDesiredConfig(cfg domain.AgentDesiredConfig) error {
@@ -896,6 +908,8 @@ func (s *Server) handleIncidentAction(w http.ResponseWriter, r *http.Request) {
 	validActions := map[string]bool{
 		"restart":          true,
 		"disable-watchdog": true,
+		"diagnostics":      true,
+		"rollback-config":  true,
 	}
 	if !validActions[action] {
 		writeError(w, http.StatusBadRequest, "invalid action")
@@ -921,6 +935,9 @@ func (s *Server) handleIncidentAction(w http.ResponseWriter, r *http.Request) {
 		// Enqueue service-action task
 		_, err = s.tasks.EnqueueWithPayload(r.Context(), incident.ServerID, "service-action",
 			tasks.TaskPayload{Service: incident.ServiceName, Action: "restart"}, actor)
+	case "diagnostics":
+		_, err = s.tasks.EnqueueWithPayload(r.Context(), incident.ServerID, "diagnostics",
+			tasks.TaskPayload{Service: incident.ServiceName, IncidentID: incident.ID}, actor)
 	case "disable-watchdog":
 		// Update desired config to disable watchdog for this service
 		cfg, err := s.configStore.Get(r.Context(), incident.ServerID)
@@ -942,8 +959,23 @@ func (s *Server) handleIncidentAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		cfg.UpdatedAt = time.Now().UTC()
-		if err := s.configStore.Set(r.Context(), incident.ServerID, cfg); err != nil {
+		if _, err := s.saveDesiredConfig(r.Context(), incident.ServerID, cfg); err != nil {
 			writeError(w, http.StatusInternalServerError, "update config failed")
+			return
+		}
+	case "rollback-config":
+		cfg, err := s.configStore.Previous(r.Context(), incident.ServerID)
+		if err != nil {
+			if errors.Is(err, serverconfig.ErrNotFound) {
+				writeError(w, http.StatusBadRequest, "no previous config to rollback")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "get previous config failed")
+			return
+		}
+		cfg.UpdatedAt = time.Now().UTC()
+		if _, err := s.saveDesiredConfig(r.Context(), incident.ServerID, cfg); err != nil {
+			writeError(w, http.StatusInternalServerError, "rollback config failed")
 			return
 		}
 	}

@@ -87,16 +87,14 @@ func AvailableActions() []IncidentAction {
 		{
 			Name:        "diagnostics",
 			Label:       "Run Diagnostics",
-			Description: "Collect diagnostic information",
-			Enabled:     false,
-			ComingSoon:  true,
+			Description: "Collect a safe host/service diagnostic bundle",
+			Enabled:     true,
 		},
 		{
 			Name:        "rollback-config",
 			Label:       "Rollback Config",
-			Description: "Restore previous configuration",
-			Enabled:     false,
-			ComingSoon:  true,
+			Description: "Restore the previous desired agent configuration",
+			Enabled:     true,
 		},
 	}
 }

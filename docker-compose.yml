@@ -1,0 +1,78 @@
+services:
+  mongo:
+    image: mongo:8
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      HOMELYTICS_HTTP_ADDR: ":8080"
+      HOMELYTICS_ENV: development
+      HOMELYTICS_CORS_ALLOWED_ORIGINS: "http://localhost:5173"
+      HOMELYTICS_INGEST_TOKENS: "${HOMELYTICS_INGEST_TOKENS:-dev-agent-token}"
+      HOMELYTICS_ADMIN_TOKEN: "${HOMELYTICS_ADMIN_TOKEN:-dev-admin-token}"
+      HOMELYTICS_MONGO_URI: "mongodb://mongo:27017"
+      HOMELYTICS_MONGO_DATABASE: "${HOMELYTICS_MONGO_DATABASE:-homelytics}"
+      HOMELYTICS_REDIS_ADDR: "redis:6379"
+      AI_API_KEY: "${AI_API_KEY:-}"
+      AI_BASE_URL: "${AI_BASE_URL:-https://api.deepseek.com}"
+      AI_MODEL: "${AI_MODEL:-deepseek-chat}"
+
+  notifications:
+    build:
+      context: ./backend
+    command: ["/app/notifications"]
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      HOMELYTICS_REDIS_ADDR: "redis:6379"
+      HOMELYTICS_NOTIFICATIONS_EVENT_CHANNEL: "events"
+      HOMELYTICS_NOTIFICATIONS_TELEGRAM_BOT_TOKEN: "${HOMELYTICS_NOTIFICATIONS_TELEGRAM_BOT_TOKEN:-}"
+      HOMELYTICS_NOTIFICATIONS_TELEGRAM_CHAT_ID: "${HOMELYTICS_NOTIFICATIONS_TELEGRAM_CHAT_ID:-}"
+    profiles:
+      - notifications
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: "${VITE_API_BASE_URL:-http://localhost:8080}"
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
+volumes:
+  mongo-data:

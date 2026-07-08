@@ -135,11 +135,12 @@ go run ./cmd/agent -config ./config.example.yaml -self-update
 - Backend создает incidents из agent events (`process.down`, `process.restart_failed`, `process.restart_suppressed`).
 - Incident содержит timeline с событиями: crash, restart attempt, action execution.
 - Frontend показывает incident drawer с timeline и actions.
-- MVP actions: `Restart` (через `service-action` task) и `Disable Watchdog` (через desired config).
-- Actions `Run Diagnostics` и `Rollback Config` показываются как "Coming soon".
+- Active actions: `Restart` (через `service-action` task), `Disable Watchdog` (через desired config), `Run Diagnostics` (через `diagnostics` task) и `Rollback Config` (через backend config history).
 - Все actions логируются в audit log.
 - Incident автоматически закрывается при `process.up` event.
 - Actions защищены `requireAdmin` middleware.
+- `Run Diagnostics` возвращает safe JSON bundle: host, system, network, hardware, process snapshot, agent revision и incident/service context.
+- `Rollback Config` восстанавливает предыдущий desired config как новую revision и обновляет desired revision summary.
 - Backend тесты проходят: `go test ./...`.
 - Frontend билдится: `npm run build`.
 
@@ -172,8 +173,6 @@ go run ./cmd/agent -config ./config.example.yaml -self-update
 ## Не реализовано
 
 - Full remote PTY shell через backend/frontend.
-- Task `diagnostics`.
-- Config rollback с локальной историей.
 - First-class task `disable-watchdog`.
 - gRPC transport в runtime.
 - eBPF traffic analysis.
@@ -207,6 +206,7 @@ Built-in task names:
 
 - `service-action`
 - `dns-recheck`
+- `diagnostics`
 
 Также работают allowlisted task names из YAML, например `disk-usage`.
 
@@ -236,8 +236,5 @@ GET /v1/agent/config?agent_id=<agent-name>
 
 - `Restart`: active, работает через `service-action`.
 - `Disable Watchdog`: active только если backend меняет desired config. Не отправлять fake agent task.
-
-Показывать disabled или `Coming soon`:
-
-- `Run Diagnostics`: planned task name `diagnostics`.
-- `Rollback Config`: нужен config history, diff, confirmation и audit trail.
+- `Run Diagnostics`: active, работает через встроенную safe task `diagnostics`.
+- `Rollback Config`: active, работает через backend config history и audit trail.

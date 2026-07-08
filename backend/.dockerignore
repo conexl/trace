@@ -1,0 +1,6 @@
+backend
+notifications
+.env
+.git
+.gitignore
+*.log

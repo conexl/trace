@@ -15,6 +15,7 @@ import (
 	"backend/internal/audit"
 	"backend/internal/auth"
 	"backend/internal/config"
+	"backend/internal/domain"
 	"backend/internal/incidents"
 	"backend/internal/ingest"
 	"backend/internal/presence"
@@ -378,6 +379,118 @@ func TestIncidentMetricsCreatedFromIngest(t *testing.T) {
 	if out.Total != 1 || out.Open != 1 || out.Critical != 1 {
 		t.Fatalf("metrics = %#v", out)
 	}
+}
+
+func TestIncidentDiagnosticsActionQueuesTask(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Auth: config.AuthConfig{AdminToken: "admin-token"}}
+	server := newTestServer(t, cfg)
+	incident := createOpenIncidentForTest(t, server)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/incidents/"+incident.ID+"/diagnostics", nil)
+	req.Header.Set("Authorization", "Bearer admin-token")
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("diagnostics status = %d body=%s", w.Code, w.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/agent/tasks?agent_id=devbox", nil)
+	w = httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("poll status = %d body=%s", w.Code, w.Body.String())
+	}
+	var poll struct {
+		Tasks []tasks.Task `json:"tasks"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &poll); err != nil {
+		t.Fatal(err)
+	}
+	if len(poll.Tasks) != 1 || poll.Tasks[0].Name != "diagnostics" || poll.Tasks[0].Payload.IncidentID != incident.ID || poll.Tasks[0].Payload.Service != "nginx" {
+		t.Fatalf("tasks = %#v", poll.Tasks)
+	}
+}
+
+func TestIncidentRollbackConfigRestoresPreviousDesiredConfig(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Auth: config.AuthConfig{AdminToken: "admin-token"}}
+	server := newTestServer(t, cfg)
+
+	setServerConfigForTest(t, server, domain.AgentDesiredConfig{
+		Processes: []domain.ProcessConfig{{Name: "nginx", Service: "nginx", Restart: true}},
+	})
+	setServerConfigForTest(t, server, domain.AgentDesiredConfig{
+		Processes: []domain.ProcessConfig{{Name: "nginx", Service: "nginx", Restart: false}},
+	})
+	incident := createOpenIncidentForTest(t, server)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/incidents/"+incident.ID+"/rollback-config", nil)
+	req.Header.Set("Authorization", "Bearer admin-token")
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("rollback status = %d body=%s", w.Code, w.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/servers/devbox/config", nil)
+	req.Header.Set("Authorization", "Bearer admin-token")
+	w = httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("get config status = %d body=%s", w.Code, w.Body.String())
+	}
+	var out domain.AgentDesiredConfig
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Revision != 3 || len(out.Processes) != 1 || !out.Processes[0].Restart {
+		t.Fatalf("config = %#v", out)
+	}
+}
+
+func createOpenIncidentForTest(t *testing.T, server *Server) incidents.Incident {
+	t.Helper()
+	payload := []byte(`{"snapshots":[{"agent_name":"devbox","events":[{"type":"process.down","severity":"critical","subject":"nginx","message":"critical process is not running","timestamp":"2026-07-02T09:00:00Z"}],"collected_at":"2026-07-02T09:00:00Z"}]}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/agent/snapshots", bytes.NewReader(payload))
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("ingest status = %d body=%s", w.Code, w.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/incidents?limit=1", nil)
+	req.Header.Set("Authorization", "Bearer admin-token")
+	w = httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list incidents status = %d body=%s", w.Code, w.Body.String())
+	}
+	var out struct {
+		Incidents []incidents.Incident `json:"incidents"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Incidents) != 1 {
+		t.Fatalf("incidents = %#v", out.Incidents)
+	}
+	return out.Incidents[0]
+}
+
+func setServerConfigForTest(t *testing.T, server *Server, cfg domain.AgentDesiredConfig) domain.AgentDesiredConfig {
+	t.Helper()
+	body, _ := json.Marshal(cfg)
+	req := httptest.NewRequest(http.MethodPost, "/v1/servers/devbox/config", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer admin-token")
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("set config status = %d body=%s", w.Code, w.Body.String())
+	}
+	var out domain.AgentDesiredConfig
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	return out
 }
 
 func registerUser(t *testing.T, server *Server, email, password string, adminToken string) string {

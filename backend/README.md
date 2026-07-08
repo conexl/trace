@@ -44,6 +44,26 @@ curl -H 'Authorization: Bearer dev-admin-token' http://localhost:8080/v1/servers
 curl -H 'Authorization: Bearer dev-admin-token' http://localhost:8080/v1/servers/homelytics-devbox
 ```
 
+## Run With Docker Compose
+
+From the repository root:
+
+```bash
+HOMELYTICS_ADMIN_TOKEN=dev-admin-token \
+HOMELYTICS_INGEST_TOKENS=dev-agent-token \
+docker compose up --build
+```
+
+This starts MongoDB, Redis, the backend API on `localhost:8080`, and the frontend on `localhost:5173`.
+
+Start the standalone Telegram notifications worker too:
+
+```bash
+HOMELYTICS_NOTIFICATIONS_TELEGRAM_BOT_TOKEN='123:abc' \
+HOMELYTICS_NOTIFICATIONS_TELEGRAM_CHAT_ID='123456' \
+docker compose --profile notifications up --build
+```
+
 ## Authentication and Registration
 
 The backend supports email/password users with session tokens. The first registered user becomes `owner` and can access admin endpoints. Subsequent registrations are controlled by `HOMELYTICS_REGISTRATION_DISABLED` and the optional `HOMELYTICS_ADMIN_TOKEN`.
@@ -173,6 +193,8 @@ Response includes:
 - `GET /v1/incidents/{id}`
 - `POST /v1/incidents/{id}/restart`
 - `POST /v1/incidents/{id}/disable-watchdog`
+- `POST /v1/incidents/{id}/diagnostics`
+- `POST /v1/incidents/{id}/rollback-config`
 - `POST /v1/incidents/{id}/analyze`
 - `GET /v1/servers`
 - `GET /v1/servers/{id}`
@@ -242,6 +264,15 @@ curl -X POST http://localhost:8080/v1/servers/homelytics-devbox/tasks \
 
 Agents poll `GET /v1/agent/tasks?agent_id=<agent-name>` and report results to `POST /v1/agent/tasks/{task_id}/result`. The agent still executes only locally allowlisted YAML tasks.
 
+Queue a built-in safe diagnostics task:
+
+```bash
+curl -X POST http://localhost:8080/v1/servers/homelytics-devbox/tasks \
+  -H 'Authorization: Bearer dev-admin-token' \
+  -H 'Content-Type: application/json' \
+  -d '{"task_name":"diagnostics"}'
+```
+
 Queue a typed service action for a service that the latest agent snapshot marked as `remote_control: true`:
 
 ```bash
@@ -254,6 +285,8 @@ curl -X POST http://localhost:8080/v1/servers/homelytics-devbox/service-actions 
 ## Agent Config Polling
 
 Agents poll `GET /v1/agent/config?agent_id=<agent-name>` and apply the returned desired configuration to their local YAML. The backend stores the desired config per server under `GET /v1/servers/{id}/config` and accepts updates through `POST /v1/servers/{id}/config`. UI changes to watchdog processes, DNS checks, service policies, and update settings are persisted there and pushed to agents on the next poll.
+
+Desired config changes are versioned in backend history. Incident action `rollback-config` restores the previous desired config as a new revision and writes an audit trail.
 
 ## Alerts
 
