@@ -100,20 +100,20 @@ type AgentEvent struct {
 }
 
 type ServerSummary struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	Hostname     string    `json:"hostname"`
-	Platform     string    `json:"platform"`
-	PublicIP     string    `json:"public_ip"`
-	Version      string    `json:"version,omitempty"`
-	Status       string    `json:"status"`
-	LastSeen     time.Time `json:"last_seen"`
-	CPUPercent   float64   `json:"cpu_percent"`
-	MemoryUsed   float64   `json:"memory_used_percent"`
-	ProcessCount int       `json:"process_count"`
-	EventCount   int       `json:"event_count"`
-	AppliedConfigRevision int64 `json:"applied_config_revision"`
-	DesiredConfigRevision int64 `json:"desired_config_revision"`
+	ID                    string    `json:"id"`
+	Name                  string    `json:"name"`
+	Hostname              string    `json:"hostname"`
+	Platform              string    `json:"platform"`
+	PublicIP              string    `json:"public_ip"`
+	Version               string    `json:"version,omitempty"`
+	Status                string    `json:"status"`
+	LastSeen              time.Time `json:"last_seen"`
+	CPUPercent            float64   `json:"cpu_percent"`
+	MemoryUsed            float64   `json:"memory_used_percent"`
+	ProcessCount          int       `json:"process_count"`
+	EventCount            int       `json:"event_count"`
+	AppliedConfigRevision int64     `json:"applied_config_revision"`
+	DesiredConfigRevision int64     `json:"desired_config_revision"`
 }
 
 type ServerState struct {
@@ -123,6 +123,9 @@ type ServerState struct {
 }
 
 const (
+	RoleMember = "member"
+	// Legacy roles are still accepted for existing local databases, but new SaaS
+	// accounts are created as members because the MVP has no admin panel.
 	RoleOwner  = "owner"
 	RoleAdmin  = "admin"
 	RoleViewer = "viewer"

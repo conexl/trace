@@ -66,14 +66,14 @@ docker compose --profile notifications up --build
 
 ## Authentication and Registration
 
-The backend supports email/password users with session tokens. The first registered user becomes `owner` and can access admin endpoints. Subsequent registrations are controlled by `HOMELYTICS_REGISTRATION_DISABLED` and the optional `HOMELYTICS_ADMIN_TOKEN`.
+The backend supports email/password users with session tokens. Homelytics is SaaS-shaped in the MVP: new users are created as `member` accounts and can use the product actions available in the dashboard. `HOMELYTICS_ADMIN_TOKEN` is kept as an internal development/bootstrap invite token for tests and private demos; it is not a customer-facing admin role.
 
-Register the first user (owner):
+Register a member account:
 
 ```bash
 curl -X POST http://localhost:8080/v1/auth/register \
   -H 'Content-Type: application/json' \
-  -d '{"email":"owner@example.com","password":"password123"}'
+  -d '{"email":"you@example.com","password":"password123"}'
 ```
 
 Login:
@@ -81,16 +81,16 @@ Login:
 ```bash
 curl -X POST http://localhost:8080/v1/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"owner@example.com","password":"password123"}'
+  -d '{"email":"you@example.com","password":"password123"}'
 ```
 
-Create an additional admin user with the admin token:
+Create an additional member while registration is closed by using the internal invite token:
 
 ```bash
 curl -X POST http://localhost:8080/v1/auth/register \
   -H 'Authorization: Bearer dev-admin-token' \
   -H 'Content-Type: application/json' \
-  -d '{"email":"admin@example.com","password":"password123"}'
+  -d '{"email":"member@example.com","password":"password123"}'
 ```
 
 Login and register endpoints are rate-limited by client IP (defaults: 10/min for login, 5/hour for register).
@@ -128,7 +128,7 @@ If Redis is not configured, the backend uses an in-memory fallback and still der
 - `HOMELYTICS_TRUST_FORWARDED_HEADERS`, default `false`. Set to `true` only when the backend runs behind a trusted reverse proxy so rate limiting can use `X-Forwarded-For`/`X-Real-Ip`.
 - `HOMELYTICS_ENV`, default `development`
 - `HOMELYTICS_INGEST_TOKENS`, comma-separated bearer tokens for agent ingest
-- `HOMELYTICS_ADMIN_TOKEN`, optional bearer token for bootstrapping admin users and read APIs
+- `HOMELYTICS_ADMIN_TOKEN`, optional internal development/bootstrap token for private registration and smoke tests
 - `HOMELYTICS_REGISTRATION_DISABLED`, default `false`. When `true`, only the first user can register; additional users require an `AdminToken`.
 - `HOMELYTICS_BOOTSTRAP_ADMIN_EMAIL`, optional email that is automatically granted `owner` role on first registration.
 - `HOMELYTICS_LOGIN_RATE_LIMIT`, default `10`

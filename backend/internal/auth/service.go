@@ -67,17 +67,10 @@ func (s *Service) Register(ctx context.Context, email, password string) (string,
 		return "", fmt.Errorf("hash password: %w", err)
 	}
 
-	role := domain.RoleViewer
-	if firstUser {
-		role = domain.RoleOwner
-	} else if s.cfg.Auth.BootstrapAdminEmail == email {
-		role = domain.RoleAdmin
-	}
-
 	user := domain.User{
 		Email:        email,
 		PasswordHash: string(hash),
-		Role:         role,
+		Role:         domain.RoleMember,
 		Verified:     false,
 		CreatedAt:    time.Now().UTC(),
 	}
@@ -108,7 +101,7 @@ func (s *Service) RegisterAdmin(ctx context.Context, adminToken, email, password
 	user := domain.User{
 		Email:        email,
 		PasswordHash: string(hash),
-		Role:         domain.RoleAdmin,
+		Role:         domain.RoleMember,
 		Verified:     false,
 		CreatedAt:    time.Now().UTC(),
 	}
@@ -181,11 +174,20 @@ func (s *Service) IsAdminToken(token string) bool {
 }
 
 func (s *Service) IsAdmin(session Session) bool {
-	return session.Role == domain.RoleOwner || session.Role == domain.RoleAdmin
+	return s.IsProductMember(session)
 }
 
 func (s *Service) IsOwner(session Session) bool {
 	return session.Role == domain.RoleOwner
+}
+
+func (s *Service) IsProductMember(session Session) bool {
+	switch session.Role {
+	case domain.RoleMember, domain.RoleOwner, domain.RoleAdmin, domain.RoleViewer:
+		return session.Email != ""
+	default:
+		return false
+	}
 }
 
 func (s *Service) createSession(user domain.User) string {

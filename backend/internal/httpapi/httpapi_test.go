@@ -517,17 +517,35 @@ func registerUser(t *testing.T, server *Server, email, password string, adminTok
 	return resp.Token
 }
 
-func TestFirstUserBecomesOwner(t *testing.T) {
+func TestRegisteredUserBecomesMemberAndCanUseProductActions(t *testing.T) {
 	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}}
 	server := newTestServer(t, cfg)
-	token := registerUser(t, server, "owner@example.com", "password123", "")
+	token := registerUser(t, server, "member@example.com", "password123", "")
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/servers", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/auth/me", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	server.securityHeaders(server.mux).ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
-		t.Fatalf("owner should access admin endpoint: status = %d body=%s", w.Code, w.Body.String())
+		t.Fatalf("me status = %d body=%s", w.Code, w.Body.String())
+	}
+	var me struct {
+		Email string `json:"email"`
+		Role  string `json:"role"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &me); err != nil {
+		t.Fatal(err)
+	}
+	if me.Role != domain.RoleMember {
+		t.Fatalf("role = %q", me.Role)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/tasks", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w = httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("member should access product action endpoint: status = %d body=%s", w.Code, w.Body.String())
 	}
 }
 
@@ -545,18 +563,27 @@ func TestRegistrationDisabledRejectsSecondUser(t *testing.T) {
 	}
 }
 
-func TestAdminTokenCanCreateAdminUser(t *testing.T) {
+func TestDevTokenCanRegisterMemberWhenRegistrationClosed(t *testing.T) {
 	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Auth: config.AuthConfig{AdminToken: "admin-token", RegistrationDisabled: true}}
 	server := newTestServer(t, cfg)
-	registerUser(t, server, "owner@example.com", "password123", "")
-	adminToken := registerUser(t, server, "admin@example.com", "password123", "admin-token")
+	registerUser(t, server, "first@example.com", "password123", "")
+	memberToken := registerUser(t, server, "second@example.com", "password123", "admin-token")
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/servers", nil)
-	req.Header.Set("Authorization", "Bearer "+adminToken)
+	req := httptest.NewRequest(http.MethodGet, "/v1/auth/me", nil)
+	req.Header.Set("Authorization", "Bearer "+memberToken)
 	w := httptest.NewRecorder()
 	server.securityHeaders(server.mux).ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
-		t.Fatalf("admin token created user should access admin endpoint: status = %d body=%s", w.Code, w.Body.String())
+		t.Fatalf("member status = %d body=%s", w.Code, w.Body.String())
+	}
+	var me struct {
+		Role string `json:"role"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &me); err != nil {
+		t.Fatal(err)
+	}
+	if me.Role != domain.RoleMember {
+		t.Fatalf("role = %q", me.Role)
 	}
 }
 
@@ -628,26 +655,26 @@ func TestTelegramNotificationLinkLifecycle(t *testing.T) {
 	}
 }
 
-func TestViewerCannotAccessAdminEndpoints(t *testing.T) {
+func TestSecondRegisteredUserCanUseProductEndpoints(t *testing.T) {
 	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}}
 	server := newTestServer(t, cfg)
-	registerUser(t, server, "owner@example.com", "password123", "")
-	viewerToken := registerUser(t, server, "viewer@example.com", "password123", "")
+	registerUser(t, server, "first@example.com", "password123", "")
+	memberToken := registerUser(t, server, "second@example.com", "password123", "")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/servers", nil)
-	req.Header.Set("Authorization", "Bearer "+viewerToken)
+	req.Header.Set("Authorization", "Bearer "+memberToken)
 	w := httptest.NewRecorder()
 	server.securityHeaders(server.mux).ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
-		t.Fatalf("viewer list servers status = %d body=%s", w.Code, w.Body.String())
+		t.Fatalf("member list servers status = %d body=%s", w.Code, w.Body.String())
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/v1/tasks", nil)
-	req.Header.Set("Authorization", "Bearer "+viewerToken)
+	req.Header.Set("Authorization", "Bearer "+memberToken)
 	w = httptest.NewRecorder()
 	server.securityHeaders(server.mux).ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("viewer admin endpoint status = %d body=%s", w.Code, w.Body.String())
+	if w.Code != http.StatusOK {
+		t.Fatalf("member product endpoint status = %d body=%s", w.Code, w.Body.String())
 	}
 }
 

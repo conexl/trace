@@ -47,8 +47,8 @@ const fadeInUp = {
 export function ServerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { isAuthenticated } = useAuth();
-  const { data: liveData, loading, error, connected, reconnectIn } = useServer(id);
-  const isDemo = !isAuthenticated;
+  const isDemo = id === 'demo-server' || !isAuthenticated;
+  const { data: liveData, loading, error, connected, reconnectIn } = useServer(id, !isDemo);
   const data = isDemo ? DEMO_STATE : liveData;
   const [history, setHistory] = React.useState<HistoryPoint[]>(() =>
     isDemo ? generateDemoHistory() : []
@@ -424,7 +424,7 @@ export function ServerDetailPage() {
         onOpenChange={(open) => !open && setSelectedIncident(null)}
         incident={selectedIncident}
         onActionExecuted={() => {
-          if (id) {
+          if (id && !isDemo) {
             listIncidents(id, 10).then((res) => setIncidents(res.incidents)).catch(() => {});
           }
         }}

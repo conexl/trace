@@ -757,7 +757,7 @@ func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 			next(w, r)
 			return
 		}
-		writeError(w, http.StatusUnauthorized, "invalid admin token")
+		writeError(w, http.StatusUnauthorized, "authentication required")
 	}
 }
 

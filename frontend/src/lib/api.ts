@@ -47,11 +47,11 @@ export async function logout(): Promise<void> {
 export async function register(
   email: string,
   password: string,
-  adminToken?: string
+  inviteToken?: string
 ): Promise<void> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (adminToken) {
-    headers.Authorization = `Bearer ${adminToken}`;
+  if (inviteToken) {
+    headers.Authorization = `Bearer ${inviteToken}`;
   }
   const response = await fetch(`${API_BASE_URL}/v1/auth/register`, {
     method: 'POST',

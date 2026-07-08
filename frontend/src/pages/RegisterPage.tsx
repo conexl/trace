@@ -13,7 +13,7 @@ export function RegisterPage() {
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [confirm, setConfirm] = React.useState('');
-  const [adminToken, setAdminToken] = React.useState('');
+  const [inviteToken, setInviteToken] = React.useState('');
   const [error, setError] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
 
@@ -40,7 +40,7 @@ export function RegisterPage() {
     }
     setIsLoading(true);
     try {
-      await register(email.trim(), password, adminToken.trim() || undefined);
+      await register(email.trim(), password, inviteToken.trim() || undefined);
       await authLogin();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
@@ -63,9 +63,9 @@ export function RegisterPage() {
               <KeyRound className="h-5 w-5 text-accent" />
             </div>
             <h1 className="text-lg font-medium tracking-tight text-active">Create account</h1>
-            <p className="mt-1 text-xs text-muted">Set up admin access to your nodes.</p>
+            <p className="mt-1 text-xs text-muted">Create a workspace account for your nodes.</p>
             <div className="mt-3 rounded-md border border-accent/20 bg-accent/5 px-3 py-2 text-[10px] text-accent uppercase font-mono tracking-wider">
-              First user will be granted Owner role
+              All MVP accounts use the same member access
             </div>
           </div>
 
@@ -76,7 +76,7 @@ export function RegisterPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@example.com"
+                placeholder="you@example.com"
                 className="w-full rounded-md border border-border bg-canvas px-3 py-2 text-sm text-active placeholder:text-muted/50 focus:border-border-focus focus:outline-none"
                 autoFocus
               />
@@ -103,17 +103,17 @@ export function RegisterPage() {
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-mono uppercase text-muted">
-                Admin token <span className="text-muted/60">(optional)</span>
+                Invite token <span className="text-muted/60">(optional)</span>
               </label>
               <input
                 type="password"
-                value={adminToken}
-                onChange={(e) => setAdminToken(e.target.value)}
+                value={inviteToken}
+                onChange={(e) => setInviteToken(e.target.value)}
                 placeholder="Required when registration is disabled"
                 className="w-full rounded-md border border-border bg-canvas px-3 py-2 text-sm text-active placeholder:text-muted/50 focus:border-border-focus focus:outline-none"
               />
               <p className="text-[10px] text-muted/70">
-                First user becomes owner. Additional accounts require an admin token when registration is closed.
+                Only needed for private demos where public registration is closed.
               </p>
             </div>
 
