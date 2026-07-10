@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { MessageCircle } from 'lucide-react';
+import { CheckCircle2, Loader2, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import {
@@ -83,23 +83,30 @@ export function TelegramConnectButton() {
   };
 
   const connected = status?.connected ?? false;
+  const chatLabel = status?.chat?.username
+    ? `@${status.chat.username}`
+    : status?.chat?.title || status?.chat?.first_name || 'Connected';
 
   return (
-    <>
+    <div className="space-y-2">
       <Button
-        variant="ghost"
+        variant={connected ? 'default' : 'neon'}
         size="sm"
         onClick={() => (connected ? setConfirmUnlink(true) : connect())}
         disabled={loading}
-        className={cn(
-          'h-8 w-8 p-0 text-muted',
-          error ? 'text-red-300 hover:text-red-200' : '',
-          connected ? 'text-sky-300 hover:text-sky-200' : 'hover:text-sky-300'
-        )}
+        className={cn('w-full gap-2 sm:w-auto', error ? 'border-red-400/30 text-red-300 hover:text-red-200' : '')}
         title={error ?? (connected ? 'Telegram connected. Click to unlink.' : 'Connect Telegram notifications')}
       >
-        <MessageCircle className="h-4 w-4" />
+        {loading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : connected ? (
+          <CheckCircle2 className="h-4 w-4 text-sky-300" />
+        ) : (
+          <MessageCircle className="h-4 w-4" />
+        )}
+        {loading ? 'Checking...' : connected ? chatLabel : 'Connect Telegram'}
       </Button>
+      {error && <p className="max-w-xs text-xs leading-5 text-red-300">{error}</p>}
 
       <ConfirmationDialog
         open={confirmUnlink}
@@ -110,6 +117,6 @@ export function TelegramConnectButton() {
         variant="danger"
         onConfirm={unlink}
       />
-    </>
+    </div>
   );
 }
