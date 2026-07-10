@@ -39,15 +39,17 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
 
   return (
     <header className="fixed left-0 right-0 top-0 z-40 px-3 py-3 sm:px-6">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/70 px-3 py-2 shadow-[0_18px_70px_rgba(0,0,0,0.42)] backdrop-blur-xl">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/72 px-3 py-2 shadow-[0_18px_70px_rgba(0,0,0,0.42)] backdrop-blur-xl">
         <button
           type="button"
           onClick={() => navigate('/')}
           className="group flex items-center gap-3 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/[0.05]"
         >
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white p-1.5 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]">
-            <img src="/logo.svg" alt="Trace" className="h-full w-full object-contain" />
-          </div>
+          <img
+            src="/logo.svg"
+            alt="Trace"
+            className="h-10 w-10 object-contain drop-shadow-[0_0_14px_rgba(255,255,255,0.20)]"
+          />
           <div className="hidden sm:block">
             <p className="text-sm font-semibold tracking-tight text-active">Trace</p>
             <p className="text-[10px] uppercase tracking-[0.18em] text-muted">Server control plane</p>
