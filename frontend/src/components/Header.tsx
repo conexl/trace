@@ -13,7 +13,6 @@ import {
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
-import { TelegramConnectButton } from '@/components/TelegramConnectButton';
 import { cn } from '@/lib/utils';
 
 interface HeaderProps {
@@ -86,7 +85,6 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
                 {isPlus ? <Crown className="h-3.5 w-3.5" /> : <CreditCard className="h-3.5 w-3.5" />}
                 {isPlus ? 'Plus' : 'Free'}
               </button>
-              {isPlus && <TelegramConnectButton />}
             </>
           )}
 
@@ -122,12 +120,17 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
                 transition={{ duration: 0.2 }}
                 className="flex items-center gap-2"
               >
-                <div className="hidden h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 md:flex">
+                <button
+                  type="button"
+                  onClick={() => navigate('/profile')}
+                  className="flex h-9 w-9 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] transition-colors hover:border-white/20 hover:bg-white/[0.08] md:w-auto md:px-3"
+                  title="Open profile"
+                >
                   <User className="h-3.5 w-3.5 text-muted-soft" />
-                  <span className="max-w-[160px] truncate font-mono text-xs text-active">
+                  <span className="hidden max-w-[160px] truncate font-mono text-xs text-active md:inline">
                     {user?.email ?? 'Session'}
                   </span>
-                </div>
+                </button>
                 <Button
                   variant="ghost"
                   size="sm"

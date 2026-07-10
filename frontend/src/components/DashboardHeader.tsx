@@ -78,8 +78,17 @@ export function DashboardHeader({ onAddServerClick }: DashboardHeaderProps) {
               </button>
               <button
                 type="button"
+                onClick={() => navigate('/profile')}
+                className="flex h-8 w-8 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] text-xs font-medium text-muted-soft transition-colors hover:border-white/20 hover:bg-white/[0.07] hover:text-active md:w-auto md:px-3"
+                title="Open profile"
+              >
+                <User className="h-3.5 w-3.5" />
+                <span className="hidden md:inline">Profile</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => navigate('/billing')}
-                className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-1.5 text-xs font-medium capitalize text-muted-soft transition-colors hover:border-white/20 hover:bg-white/[0.07] hover:text-active md:flex"
+                className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-1.5 text-xs font-medium capitalize text-muted-soft transition-colors hover:border-white/20 hover:bg-white/[0.07] hover:text-active lg:flex"
               >
                 <CreditCard className="h-3.5 w-3.5" />
                 {plan}
@@ -110,12 +119,6 @@ export function DashboardHeader({ onAddServerClick }: DashboardHeaderProps) {
                 transition={{ duration: 0.2 }}
                 className="flex items-center gap-2"
               >
-                <div className="hidden h-8 items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 lg:flex">
-                  <User className="h-3.5 w-3.5 text-muted-soft" />
-                  <span className="max-w-[150px] truncate font-mono text-xs text-active">
-                    {user?.email ?? 'Session'}
-                  </span>
-                </div>
                 <Button
                   variant="ghost"
                   size="sm"

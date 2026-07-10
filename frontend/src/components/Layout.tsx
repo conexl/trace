@@ -25,7 +25,7 @@ export function Layout() {
   const [authOpen, setAuthOpen] = React.useState(false);
   const [addServerOpen, setAddServerOpen] = React.useState(false);
   const [addServerSeed, setAddServerSeed] = React.useState<AddServerSeed | null>(null);
-  const isDashboard = ['/servers', '/incidents', '/tasks', '/alerts'].some((path) =>
+  const isDashboard = ['/servers', '/incidents', '/tasks', '/alerts', '/profile'].some((path) =>
     location.pathname === path || location.pathname.startsWith(`${path}/`)
   );
 
