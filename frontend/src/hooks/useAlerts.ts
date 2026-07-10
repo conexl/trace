@@ -9,7 +9,7 @@ export function useAlerts(enabled = true) {
 
   const fetcher = useCallback(async () => {
     const response = await listAlerts(100);
-    return response.alerts;
+    return Array.isArray(response.alerts) ? response.alerts : [];
   }, []);
 
   return usePolling<Alert[]>({

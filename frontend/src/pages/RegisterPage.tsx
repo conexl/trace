@@ -64,8 +64,8 @@ export function RegisterPage() {
             </div>
             <h1 className="text-lg font-medium tracking-tight text-active">Create account</h1>
             <p className="mt-1 text-xs text-muted">Create a workspace account for your nodes.</p>
-            <div className="mt-3 rounded-md border border-accent/20 bg-accent/5 px-3 py-2 text-[10px] text-accent uppercase font-mono tracking-wider">
-              All MVP accounts use the same member access
+            <div className="mt-3 rounded-md border border-accent/20 bg-accent/5 px-3 py-2 font-mono text-[10px] uppercase tracking-wider text-accent">
+              One account for all connected nodes
             </div>
           </div>
 

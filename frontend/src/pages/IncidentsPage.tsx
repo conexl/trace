@@ -61,7 +61,7 @@ export function IncidentsPage() {
         listIncidents(undefined, 100),
         getIncidentMetrics('7d'),
       ]);
-      setIncidents(incidentRes.incidents);
+      setIncidents(Array.isArray(incidentRes.incidents) ? incidentRes.incidents : []);
       setMetrics(metricsRes);
       setError(null);
     } catch (err) {
@@ -99,7 +99,7 @@ export function IncidentsPage() {
       if (severity !== 'all' && incident.severity !== severity) return false;
       if (!normalizedQuery) return true;
       return [incident.title, incident.summary, incident.service_name, incident.server_id]
-        .some((value) => value.toLowerCase().includes(normalizedQuery));
+        .some((value) => String(value ?? '').toLowerCase().includes(normalizedQuery));
     });
   }, [incidents, query, severity, status]);
 
@@ -111,7 +111,7 @@ export function IncidentsPage() {
 
   const noisyServices = React.useMemo(() => {
     if (!metrics) return [];
-    return Object.entries(metrics.by_service)
+    return Object.entries(metrics.by_service ?? {})
       .sort(([, a], [, b]) => b.frequency_per_day - a.frequency_per_day)
       .slice(0, 3);
   }, [metrics]);

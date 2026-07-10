@@ -101,7 +101,7 @@ export function ServerDetailPage() {
     const fetchIncidents = () => {
       listIncidents(id, 10)
         .then((res) => {
-          if (!canceled) setIncidents(res.incidents);
+          if (!canceled) setIncidents(Array.isArray(res.incidents) ? res.incidents : []);
         })
         .catch(() => {});
     };
@@ -428,7 +428,7 @@ export function ServerDetailPage() {
         incident={selectedIncident}
         onActionExecuted={() => {
           if (id && !isDemo) {
-            listIncidents(id, 10).then((res) => setIncidents(res.incidents)).catch(() => {});
+            listIncidents(id, 10).then((res) => setIncidents(Array.isArray(res.incidents) ? res.incidents : [])).catch(() => {});
           }
         }}
       />

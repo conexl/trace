@@ -35,7 +35,7 @@ export function NeonButton({
     >
       <Plus className="h-6 w-6 transition-transform duration-300 group-hover:rotate-90" />
       <span className="transition-transform duration-300 group-hover:-translate-y-px">
-        {children ?? 'Добавить первый сервер'}
+        {children ?? 'Add first node'}
       </span>
     </motion.button>
   );

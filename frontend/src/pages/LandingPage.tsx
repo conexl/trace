@@ -78,7 +78,7 @@ const planCards = [
     name: 'Free',
     price: '$0',
     description: 'Visibility for one home server.',
-    features: ['1 connected server', '24h metric retention', 'Incidents list', 'Demo dashboard'],
+    features: ['1 connected server', '24h metric retention', 'Incidents list', 'Read-only dashboard'],
   },
   {
     name: 'Plus',

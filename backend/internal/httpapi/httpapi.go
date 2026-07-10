@@ -512,7 +512,7 @@ func (s *Server) handlePollTasks(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "poll tasks failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"tasks": tasks})
+	writeJSON(w, http.StatusOK, map[string]any{"tasks": jsonSlice(tasks)})
 }
 
 func (s *Server) handleCompleteTask(w http.ResponseWriter, r *http.Request) {
@@ -558,7 +558,7 @@ func (s *Server) handleListAlerts(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "list alerts failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"alerts": alerts})
+	writeJSON(w, http.StatusOK, map[string]any{"alerts": jsonSlice(alerts)})
 }
 
 func (s *Server) handleListServers(w http.ResponseWriter, r *http.Request) {
@@ -568,7 +568,7 @@ func (s *Server) handleListServers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	servers = s.presence.ApplySummaries(r.Context(), servers, time.Now())
-	writeJSON(w, http.StatusOK, map[string]any{"servers": servers})
+	writeJSON(w, http.StatusOK, map[string]any{"servers": jsonSlice(servers)})
 }
 
 func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
@@ -583,7 +583,7 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "list tasks failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"tasks": tasks})
+	writeJSON(w, http.StatusOK, map[string]any{"tasks": jsonSlice(tasks)})
 }
 
 func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
@@ -996,7 +996,7 @@ func (s *Server) handleListAudit(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "list audit logs failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"audit_logs": logs})
+	writeJSON(w, http.StatusOK, map[string]any{"audit_logs": jsonSlice(logs)})
 }
 
 func (s *Server) handleListIncidents(w http.ResponseWriter, r *http.Request) {
@@ -1012,7 +1012,7 @@ func (s *Server) handleListIncidents(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "list incidents failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"incidents": incidents})
+	writeJSON(w, http.StatusOK, map[string]any{"incidents": jsonSlice(incidents)})
 }
 
 func (s *Server) handleGetIncidentActions(w http.ResponseWriter, r *http.Request) {
@@ -1270,6 +1270,13 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(value)
+}
+
+func jsonSlice[T any](items []T) []T {
+	if items == nil {
+		return []T{}
+	}
+	return items
 }
 
 func writeError(w http.ResponseWriter, status int, message string) {

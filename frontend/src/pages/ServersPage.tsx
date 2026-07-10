@@ -39,7 +39,7 @@ export function ServersPage() {
       className="flex flex-1 flex-col items-center justify-center"
     >
       <NeonButton layoutId="add-server-action" onClick={handleAddClick}>
-        {atServerLimit ? 'Upgrade for more servers' : 'Добавить первый сервер'}
+        {atServerLimit ? 'Upgrade for more nodes' : 'Add first node'}
       </NeonButton>
       {!isAuthenticated && (
         <motion.p
@@ -48,7 +48,7 @@ export function ServersPage() {
           transition={{ delay: 0.3 }}
           className="mt-4 text-sm text-muted"
         >
-          Войдите, чтобы добавить узел
+          Sign in to connect a node
         </motion.p>
       )}
     </motion.div>
@@ -107,14 +107,6 @@ export function ServersPage() {
                       Free limit reached
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={handleAddClick}
-                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/[0.04] px-3 text-xs font-medium text-muted-soft transition-colors hover:border-white/25 hover:bg-white/[0.08] hover:text-active"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add node
-                  </button>
                 </div>
               </div>
 
@@ -134,7 +126,7 @@ export function ServersPage() {
                       )}
                     </div>
                     <span className="text-sm font-medium tracking-tight text-muted">
-                      {atServerLimit ? 'Upgrade to add nodes' : 'Add node'}
+                      {atServerLimit ? 'Upgrade to add nodes' : 'Connect node'}
                     </span>
                   </Card>
                 </motion.div>

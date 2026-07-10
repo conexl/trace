@@ -19,10 +19,10 @@ export function TasksPage() {
     try {
       if (tab === 'audit') {
         const res = await getAuditLogs();
-        setLogs(res.audit_logs);
+        setLogs(Array.isArray(res.audit_logs) ? res.audit_logs : []);
       } else {
         const res = await listTasks();
-        setTasks(res.tasks);
+        setTasks(Array.isArray(res.tasks) ? res.tasks : []);
       }
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Failed to fetch data');

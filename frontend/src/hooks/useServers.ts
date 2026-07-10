@@ -9,7 +9,7 @@ export function useServers(enabled = true) {
 
   const fetcher = useCallback(async () => {
     const response = await getServers();
-    return response.servers;
+    return Array.isArray(response.servers) ? response.servers : [];
   }, []);
 
   return usePolling<ServerSummary[]>({
