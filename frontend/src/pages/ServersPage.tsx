@@ -1,4 +1,3 @@
-import * as React from 'react';
 import { LayoutGroup, AnimatePresence, motion } from 'framer-motion';
 import { Crown, Plus } from 'lucide-react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
@@ -7,15 +6,13 @@ import { useServers } from '@/hooks/useServers';
 import type { LayoutContext } from '@/components/Layout';
 import { NeonButton } from '@/components/NeonButton';
 import { ServerCard } from '@/components/ServerCard';
-import { AddServerModal } from '@/components/AddServerModal';
 import { Card } from '@/components/ui/Card';
 
 export function ServersPage() {
   const { data: servers, loading } = useServers();
   const { isAuthenticated, user } = useAuth();
-  const { onAuthRequired } = useOutletContext<LayoutContext>();
+  const { onAuthRequired, onAddServer } = useOutletContext<LayoutContext>();
   const navigate = useNavigate();
-  const [modalOpen, setModalOpen] = React.useState(false);
   const hasServers = (servers?.length ?? 0) > 0;
   const serverLimit = user?.subscription.limits.max_servers ?? 1;
   const atServerLimit = isAuthenticated && (servers?.length ?? 0) >= serverLimit;
@@ -29,7 +26,7 @@ export function ServersPage() {
       navigate('/billing');
       return;
     }
-    setModalOpen(true);
+    onAddServer();
   };
 
   const emptyState = (
@@ -150,8 +147,6 @@ export function ServersPage() {
           )}
         </AnimatePresence>
       </main>
-
-      <AddServerModal open={modalOpen} onOpenChange={setModalOpen} />
     </LayoutGroup>
   );
 }
