@@ -4,6 +4,7 @@ import type {
   ServerState,
   Task,
   PairingResponse,
+  PairingCode,
   AgentDesiredConfig,
   AuditLog,
   Metric,
@@ -142,6 +143,12 @@ export function claimPairing(
     method: 'POST',
     body: JSON.stringify({ agent_name: agentName, hostname }),
     headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function createPairingCode(): Promise<PairingCode> {
+  return request<PairingCode>('/v1/pairing/codes', {
+    method: 'POST',
   });
 }
 

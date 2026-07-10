@@ -2,8 +2,11 @@ package security
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/subtle"
+	"encoding/hex"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,7 +15,7 @@ import (
 
 type PairingService struct {
 	mu     sync.Mutex
-	tokens map[string]struct{}
+	tokens map[string]time.Time
 	ca     *CertificateAuthority
 }
 
@@ -30,11 +33,27 @@ type PairingResponse struct {
 }
 
 func NewPairingService(cfg config.Config, ca *CertificateAuthority) *PairingService {
-	tokens := make(map[string]struct{}, len(cfg.Pairing.Tokens))
+	tokens := make(map[string]time.Time, len(cfg.Pairing.Tokens))
 	for token := range cfg.Pairing.Tokens {
-		tokens[token] = struct{}{}
+		tokens[token] = time.Time{}
 	}
 	return &PairingService{tokens: tokens, ca: ca}
+}
+
+func (s *PairingService) CreateToken(ttl time.Duration) (string, time.Time, error) {
+	if ttl <= 0 {
+		ttl = 15 * time.Minute
+	}
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", time.Time{}, err
+	}
+	code := strings.ToUpper(hex.EncodeToString(b[:]))
+	expiresAt := time.Now().UTC().Add(ttl)
+	s.mu.Lock()
+	s.tokens[code] = expiresAt
+	s.mu.Unlock()
+	return code, expiresAt, nil
 }
 
 func (s *PairingService) Claim(ctx context.Context, token string, req PairingRequest) (PairingResponse, error) {
@@ -66,7 +85,13 @@ func (s *PairingService) Claim(ctx context.Context, token string, req PairingReq
 func (s *PairingService) consumeToken(token string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	now := time.Now()
 	for candidate := range s.tokens {
+		expiresAt := s.tokens[candidate]
+		if !expiresAt.IsZero() && now.After(expiresAt) {
+			delete(s.tokens, candidate)
+			continue
+		}
 		if subtle.ConstantTimeCompare([]byte(candidate), []byte(token)) == 1 {
 			delete(s.tokens, candidate)
 			return true

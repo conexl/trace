@@ -174,6 +174,37 @@ func TestPairingClaimEndpoint(t *testing.T) {
 	}
 }
 
+func TestCreatePairingCodeCanBeClaimed(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Pairing: config.PairingConfig{CertTTL: time.Hour}}
+	server := newTestServer(t, cfg)
+	token := registerUser(t, server, "pairing@example.com", "password123", "")
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/pairing/codes", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create code status = %d body=%s", w.Code, w.Body.String())
+	}
+	var created struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+	if created.Code == "" {
+		t.Fatalf("empty code response: %s", w.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/v1/pairing/claim", bytes.NewReader([]byte(`{"agent_name":"devbox","hostname":"arch"}`)))
+	req.Header.Set("Authorization", "Bearer "+created.Code)
+	w = httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("claim status = %d body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestIngestAllowsVerifiedClientCertificate(t *testing.T) {
 	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}, Auth: config.AuthConfig{IngestTokens: map[string]struct{}{"agent-token": {}}}}
 	server := newTestServer(t, cfg)

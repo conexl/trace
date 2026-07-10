@@ -54,6 +54,17 @@ The updater downloads to a temporary file, verifies SHA256 when configured, veri
 
 ## Pairing
 
+Fast SaaS install flow:
+
+```bash
+curl -fsSL https://trace.solen.one/install.sh | sudo env TRACE_PAIRING_CODE=PASTE_CODE TRACE_AGENT_NAME=home-mini sh
+```
+
+The installer downloads a published agent binary, writes `/etc/homelytics/agent.yaml`,
+claims mTLS credentials, removes the one-time token from the config, and starts the
+agent through `systemd` on Linux or `launchd` on macOS. Override
+`TRACE_AGENT_URL` when testing unpublished builds.
+
 Claim backend-issued mTLS credentials with a one-time pairing token:
 
 ```bash

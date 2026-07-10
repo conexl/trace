@@ -110,6 +110,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /v1/notifications/telegram", s.requireAuth(s.handleGetTelegramNotificationStatus))
 	s.mux.HandleFunc("POST /v1/notifications/telegram/link", s.requirePlus(s.handleCreateTelegramNotificationLink))
 	s.mux.HandleFunc("DELETE /v1/notifications/telegram", s.requireAuth(s.handleDeleteTelegramNotificationLink))
+	s.mux.HandleFunc("POST /v1/pairing/codes", s.requireAuth(s.handleCreatePairingCode))
 	s.mux.HandleFunc("POST /v1/pairing/claim", s.handlePairingClaim)
 	s.mux.HandleFunc("POST /v1/agent/snapshots", s.requireAgent(s.handleIngest))
 	s.mux.HandleFunc("GET /v1/agent/tasks", s.requireAgent(s.handlePollTasks))
@@ -348,6 +349,18 @@ func (s *Server) handlePairingClaim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, resp)
+}
+
+func (s *Server) handleCreatePairingCode(w http.ResponseWriter, r *http.Request) {
+	code, expiresAt, err := s.pairing.CreateToken(15 * time.Minute)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "create pairing code failed")
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"code":       code,
+		"expires_at": expiresAt,
+	})
 }
 
 func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {

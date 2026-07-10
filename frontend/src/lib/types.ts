@@ -303,6 +303,11 @@ export interface PairingResponse {
   expires_at: string;
 }
 
+export interface PairingCode {
+  code: string;
+  expires_at: string;
+}
+
 export interface Task {
   id: string;
   server_id: string;
