@@ -10,6 +10,7 @@ import {
   LogOut,
   Menu,
   User,
+  X,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
@@ -33,6 +34,7 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const plan = user?.subscription.plan ?? 'free';
   const isPlus = plan === 'plus';
+  const closeMobileMenu = () => setMobileMenuOpen(false);
 
   return (
     <header className="fixed left-0 right-0 top-0 z-40 px-3 py-3 sm:px-6">
@@ -151,35 +153,67 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
             size="sm"
             onClick={() => setMobileMenuOpen((open) => !open)}
             className="h-9 w-9 p-0 lg:hidden"
-            title="Menu"
+            title={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileMenuOpen}
           >
-            <Menu className="h-4 w-4" />
+            {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </Button>
         </div>
       </div>
 
-      <nav
+      <div
         className={cn(
-          'mx-auto mt-2 max-w-7xl gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-black/82 p-1 backdrop-blur-xl lg:hidden',
-          mobileMenuOpen ? 'flex' : 'hidden'
+          'mx-auto mt-2 max-w-7xl overflow-hidden rounded-2xl border border-white/10 bg-black/90 shadow-[0_18px_70px_rgba(0,0,0,0.42)] backdrop-blur-xl lg:hidden',
+          mobileMenuOpen ? 'block' : 'hidden'
         )}
       >
-        {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              cn(
-                'flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-colors',
-                isActive ? 'bg-white text-black' : 'text-muted-soft hover:bg-white/[0.05] hover:text-active'
-              )
-            }
+        <nav className="grid gap-1 p-1.5">
+          {navItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              onClick={closeMobileMenu}
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+                  isActive ? 'bg-white text-black' : 'text-muted-soft hover:bg-white/[0.05] hover:text-active'
+                )
+              }
+            >
+              <item.icon className="h-4 w-4" />
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="grid gap-2 border-t border-white/10 p-2 sm:hidden">
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => {
+              closeMobileMenu();
+              navigate('/servers/demo-server');
+            }}
+            className="w-full"
           >
-            <item.icon className="h-3.5 w-3.5" />
-            {item.label}
-          </NavLink>
-        ))}
-      </nav>
+            Demo
+          </Button>
+          {isAuthenticated && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                closeMobileMenu();
+                setConfirmLogout(true);
+              }}
+              className="w-full gap-2 text-muted hover:text-red-300"
+            >
+              <LogOut className="h-4 w-4" />
+              Log out
+            </Button>
+          )}
+        </div>
+      </div>
 
       <ConfirmationDialog
         open={confirmLogout}

@@ -123,7 +123,7 @@ export function DashboardHeader({ onAddServerClick }: DashboardHeaderProps) {
                   variant="ghost"
                   size="sm"
                   onClick={() => setConfirmLogout(true)}
-                  className="h-8 w-8 p-0 text-muted hover:text-active"
+                  className="hidden h-8 w-8 p-0 text-muted hover:text-active sm:inline-flex"
                   title="Logout"
                 >
                   <LogOut className="h-4 w-4" />

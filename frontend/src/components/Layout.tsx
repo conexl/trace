@@ -75,7 +75,7 @@ export function Layout() {
       <AnimatePresence mode="wait">
         <PageTransition
           key={location.pathname}
-          className={cn('flex min-h-screen flex-col', isDashboard ? 'pt-14' : 'pt-32 lg:pt-20')}
+          className={cn('flex min-h-screen flex-col', isDashboard ? 'pt-14' : 'pt-20')}
         >
           <Outlet context={contextValue} />
         </PageTransition>
