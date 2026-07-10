@@ -2,17 +2,13 @@ import type * as React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Activity,
   ArrowRight,
-  BellRing,
+  BadgeCheck,
+  Bot,
   Check,
-  Cpu,
-  Crown,
-  Globe2,
+  Cloud,
   LockKeyhole,
-  Radar,
-  Server,
-  ShieldCheck,
+  RadioTower,
   Sparkles,
   TerminalSquare,
   Workflow,
@@ -21,59 +17,64 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 
-const heroStats = [
-  { label: 'agent latency', value: '<1s' },
-  { label: 'secure transport', value: 'mTLS' },
-  { label: 'incident actions', value: '4' },
-];
-
-const productModules = [
+const operatingLayers = [
   {
-    icon: Radar,
-    title: 'Observability cockpit',
-    text: 'CPU, RAM, disks, network, DNS, ports and process health streamed from a tiny Go agent.',
+    icon: RadioTower,
+    title: 'Agent on the node',
+    text: 'Collects process, service, network, hardware and watchdog signals close to the machine.',
   },
   {
-    icon: Workflow,
-    title: 'Control plane',
-    text: 'Run allowlisted tasks, restart remote-controllable services and roll forward agent configs.',
+    icon: Cloud,
+    title: 'SaaS control plane',
+    text: 'Stores telemetry, incidents, identities, plans and secure actions without exposing SSH.',
   },
   {
-    icon: Sparkles,
-    title: 'AI incident copilot',
-    text: 'Turn crashes and watchdog events into readable root-cause summaries and next actions.',
-  },
-  {
-    icon: BellRing,
-    title: 'SaaS notifications',
-    text: 'Telegram links are bound to the user account, so alerts follow the right operator.',
+    icon: TerminalSquare,
+    title: 'Dashboard for action',
+    text: 'Operators open the dashboard only when they need live state, diagnostics or service control.',
   },
 ];
 
-const pricing = [
+const homeVsDashboard = [
+  {
+    label: 'Home',
+    title: 'Explain the product',
+    text: 'Value proposition, security model, pricing and why Trace exists.',
+  },
+  {
+    label: 'Dashboard',
+    title: 'Operate live systems',
+    text: 'Servers, incidents, service actions, logs, tasks, metrics and agent status.',
+  },
+  {
+    label: 'Demo',
+    title: 'Sponsor walkthrough',
+    text: 'A safe preloaded node for showing the flow without touching production data.',
+  },
+];
+
+const planCards = [
   {
     name: 'Free',
     price: '$0',
-    badge: 'Start here',
-    text: 'Read-only monitoring for a single home server.',
-    features: ['1 server', '24h metrics', 'Alerts and incidents', 'Demo dashboard'],
+    text: 'One node, read-only monitoring and incident visibility for a small homelab.',
+    features: ['1 connected server', '24h metric retention', 'Incidents list', 'Demo dashboard'],
   },
   {
     name: 'Plus',
     price: '$12',
-    badge: 'Control plane',
-    text: 'For homelabs that need automation, AI triage and notifications.',
-    features: ['10 servers', '30 day retention', 'Remote tasks', 'Service actions', 'AI analysis', 'Telegram alerts'],
+    text: 'Remote control, AI incident analysis and notifications for serious home infrastructure.',
+    features: ['10 connected servers', '30 day retention', 'Remote tasks', 'Service actions', 'AI analysis', 'Telegram alerts'],
   },
 ];
 
 function FadeIn({ children, delay = 0, className }: { children: React.ReactNode; delay?: number; className?: string }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 24 }}
+      initial={{ opacity: 0, y: 18 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.25 }}
-      transition={{ duration: 0.55, delay, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
       className={className}
     >
       {children}
@@ -87,129 +88,156 @@ export function LandingPage() {
   const plan = user?.subscription.plan ?? 'free';
 
   return (
-    <main className="flex flex-1 flex-col overflow-hidden">
-      <section className="relative px-6 pb-20 pt-12 sm:px-10 lg:pb-28">
-        <div className="absolute left-1/2 top-10 h-72 w-72 -translate-x-1/2 rounded-full bg-accent/10 blur-3xl" />
-        <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+    <main className="relative flex flex-1 flex-col overflow-hidden">
+      <section className="relative px-6 pb-20 pt-16 sm:px-10 lg:pb-28 lg:pt-20">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.12),transparent_34rem)]" />
+        <div className="pointer-events-none absolute left-1/2 top-0 h-px w-[72rem] -translate-x-1/2 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+
+        <div className="relative mx-auto max-w-6xl text-center">
           <motion.div
-            initial={{ opacity: 0, y: 22 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-            className="relative z-10"
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="mx-auto mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/15 bg-white p-3 shadow-[0_20px_70px_rgba(255,255,255,0.12)]"
           >
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-xs font-semibold text-accent">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              SaaS control plane for home servers
+            <img src="/logo.svg" alt="Trace logo" className="h-full w-full object-contain" />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.08, duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-muted-soft shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+              <Sparkles className="h-3.5 w-3.5 text-active" />
+              Production-grade control for home servers
             </div>
-            <h1 className="max-w-4xl text-balance text-5xl font-bold tracking-[-0.055em] text-active sm:text-6xl lg:text-7xl">
-              Your homelab, packaged like a production platform.
+            <h1 className="mx-auto max-w-5xl text-balance text-5xl font-semibold tracking-[-0.06em] text-active sm:text-6xl lg:text-7xl">
+              A SaaS cockpit for infrastructure you actually own.
             </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-soft">
-              Trace watches the machine, explains incidents, and lets you act without SSH. Free gives you
-              visibility. Plus turns the dashboard into an operator console.
+            <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-muted-soft sm:text-lg">
+              Trace turns a Mac mini, NUC or Raspberry Pi into a managed node: secure telemetry,
+              incidents, watchdog actions, AI analysis and remote operations without opening SSH.
             </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button variant="neon" size="lg" onClick={() => navigate('/servers')} className="gap-2">
                 Open dashboard <ArrowRight className="h-4 w-4" />
               </Button>
-              <Button variant="default" size="lg" onClick={() => navigate('/billing')} className="gap-2">
-                Compare plans <Crown className="h-4 w-4" />
+              <Button variant="default" size="lg" onClick={() => navigate('/servers/demo-server')} className="gap-2">
+                View demo node
               </Button>
-            </div>
-            <div className="mt-10 grid max-w-xl grid-cols-3 gap-3">
-              {heroStats.map((stat) => (
-                <div key={stat.label} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-                  <p className="font-mono text-xl text-active">{stat.value}</p>
-                  <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-muted">{stat.label}</p>
-                </div>
-              ))}
             </div>
           </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: 18 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ delay: 0.15, duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-            className="relative z-10"
-          >
-            <div className="rounded-[2rem] border border-white/10 bg-[linear-gradient(145deg,rgba(19,34,41,0.92),rgba(7,16,19,0.96))] p-4 shadow-[0_40px_120px_rgba(0,0,0,0.48)]">
-              <div className="rounded-[1.5rem] border border-white/10 bg-canvas/80 p-4">
-                <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted">Live node</p>
-                    <h2 className="mt-1 text-xl font-semibold text-active">m1-homebase</h2>
+          <FadeIn delay={0.18} className="mx-auto mt-14 max-w-5xl">
+            <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.035] p-2 shadow-[0_30px_120px_rgba(0,0,0,0.45)]">
+              <div className="absolute inset-x-12 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+              <div className="grid gap-2 md:grid-cols-3">
+                {operatingLayers.map((layer, index) => (
+                  <div key={layer.title} className="rounded-[1.5rem] border border-white/10 bg-canvas/70 p-5 text-left">
+                    <div className="mb-8 flex items-center justify-between">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
+                        <layer.icon className="h-4 w-4 text-active" />
+                      </div>
+                      <span className="font-mono text-xs text-muted">0{index + 1}</span>
+                    </div>
+                    <h2 className="text-base font-semibold text-active">{layer.title}</h2>
+                    <p className="mt-2 text-sm leading-6 text-muted-soft">{layer.text}</p>
                   </div>
-                  <div className="rounded-full border border-accent/35 bg-accent/10 px-3 py-1 text-xs text-accent">online</div>
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <MetricCard icon={Cpu} label="CPU" value="18%" tone="cyan" />
-                  <MetricCard icon={Activity} label="RAM" value="42%" tone="amber" />
-                  <MetricCard icon={Globe2} label="DNS" value="8/8" tone="cyan" />
-                  <MetricCard icon={TerminalSquare} label="Tasks" value="Plus" tone="amber" />
-                </div>
-                <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-                  <div className="flex items-center gap-2 text-sm text-active">
-                    <Sparkles className="h-4 w-4 text-accent" />
-                    AI incident summary
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-muted-soft">
-                    Watchdog detected a failed process. Likely root cause: config drift after restart.
-                    Suggested action: run diagnostics, then restart the service.
-                  </p>
-                </div>
+                ))}
               </div>
             </div>
-          </motion.div>
+          </FadeIn>
         </div>
       </section>
 
-      <section className="border-y border-white/10 bg-white/[0.025] px-6 py-16 sm:px-10">
-        <div className="mx-auto grid max-w-7xl gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {productModules.map((module, idx) => (
-            <FadeIn key={module.title} delay={idx * 0.06}>
-              <Card hover={false} className="h-full p-5">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-accent/20 bg-accent/10">
-                  <module.icon className="h-5 w-5 text-accent" />
-                </div>
-                <h3 className="mt-5 text-lg font-semibold text-active">{module.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-soft">{module.text}</p>
-              </Card>
-            </FadeIn>
-          ))}
+      <section className="border-y border-white/10 bg-white/[0.02] px-6 py-20 sm:px-10">
+        <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
+          <FadeIn>
+            <p className="text-xs uppercase tracking-[0.24em] text-muted">Clear separation</p>
+            <h2 className="mt-4 max-w-xl text-4xl font-semibold tracking-[-0.04em] text-active">
+              The homepage sells the promise. The dashboard runs the machines.
+            </h2>
+            <p className="mt-5 max-w-xl text-sm leading-7 text-muted-soft">
+              Sponsors should understand the business in seconds. Operators should not hunt through a
+              landing page to restart a service. Trace keeps those flows intentionally separate.
+            </p>
+          </FadeIn>
+
+          <div className="grid gap-3">
+            {homeVsDashboard.map((item, index) => (
+              <FadeIn key={item.label} delay={index * 0.06}>
+                <Card hover={false} className="group p-5 transition-colors hover:border-white/20 hover:bg-white/[0.045]">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] font-mono text-xs text-muted-soft">
+                        {item.label.slice(0, 1)}
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.2em] text-muted">{item.label}</p>
+                        <h3 className="mt-1 text-lg font-semibold text-active">{item.title}</h3>
+                        <p className="mt-1 text-sm leading-6 text-muted-soft">{item.text}</p>
+                      </div>
+                    </div>
+                    {index === 1 && <BadgeCheck className="hidden h-5 w-5 text-active sm:block" />}
+                  </div>
+                </Card>
+              </FadeIn>
+            ))}
+          </div>
         </div>
       </section>
 
       <section className="px-6 py-24 sm:px-10">
-        <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-6xl">
           <FadeIn className="mb-10 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
             <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-accent">Pricing</p>
-              <h2 className="mt-3 max-w-3xl text-4xl font-semibold tracking-tight text-active">
-                Free visibility. Paid control.
+              <p className="text-xs uppercase tracking-[0.24em] text-muted">Why it can become SaaS</p>
+              <h2 className="mt-4 max-w-3xl text-4xl font-semibold tracking-[-0.04em] text-active">
+                A small agent unlocks recurring value.
               </h2>
             </div>
-            <p className="max-w-xl text-sm leading-6 text-muted-soft">
-              Current account: <span className="font-semibold capitalize text-active">{plan}</span>. Upgrade is wired
-              as a demo checkout endpoint, ready to be replaced by Stripe or Paddle.
+            <p className="max-w-xl text-sm leading-7 text-muted-soft">
+              The free plan proves visibility. Plus is where control, automation, notifications and AI triage
+              become paid operator features.
             </p>
           </FadeIn>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <FeatureCard icon={LockKeyhole} title="Secure by default" text="Account binding, mTLS-ready transport and plan-aware access keep remote operations controlled." />
+            <FeatureCard icon={Workflow} title="Actionable operations" text="Watchdog events can become restart flows, diagnostics, disabled actions or incident timelines." />
+            <FeatureCard icon={Bot} title="AI incident analyst" text="Trace can summarize crashes, correlate metrics and propose the next safe action for the operator." />
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-white/10 bg-white/[0.02] px-6 py-20 sm:px-10">
+        <div className="mx-auto max-w-6xl">
+          <FadeIn className="mb-10 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+            <div>
+              <p className="text-xs uppercase tracking-[0.24em] text-muted">Pricing</p>
+              <h2 className="mt-4 text-4xl font-semibold tracking-[-0.04em] text-active">Free visibility. Paid control.</h2>
+            </div>
+            <p className="max-w-xl text-sm leading-7 text-muted-soft">
+              Current account: <span className="font-semibold capitalize text-active">{plan}</span>. The billing page owns plan details and upgrades.
+            </p>
+          </FadeIn>
+
           <div className="grid gap-5 lg:grid-cols-2">
-            {pricing.map((tier, idx) => {
+            {planCards.map((tier, index) => {
               const plus = tier.name === 'Plus';
               return (
-                <FadeIn key={tier.name} delay={idx * 0.08}>
-                  <Card hover={false} className={plus ? 'h-full border-accent/35 p-6 shadow-accent-glow' : 'h-full p-6'}>
+                <FadeIn key={tier.name} delay={index * 0.08}>
+                  <Card hover={false} className={plus ? 'h-full border-white/25 bg-white/[0.055] p-6' : 'h-full p-6'}>
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-muted">
-                          {tier.badge}
-                        </div>
-                        <h3 className="mt-5 text-3xl font-semibold text-active">{tier.name}</h3>
+                        <p className="text-xs uppercase tracking-[0.22em] text-muted">{plus ? 'Control plane' : 'Starter'}</p>
+                        <h3 className="mt-4 text-3xl font-semibold text-active">{tier.name}</h3>
                       </div>
-                      {plus ? <Crown className="h-6 w-6 text-accent" /> : <LockKeyhole className="h-6 w-6 text-muted" />}
+                      {plus && <div className="rounded-full border border-white/15 bg-white px-3 py-1 text-xs font-semibold text-black">Best demo</div>}
                     </div>
                     <div className="mt-8 flex items-end gap-2">
-                      <span className="text-5xl font-semibold text-active">{tier.price}</span>
+                      <span className="text-5xl font-semibold tracking-[-0.05em] text-active">{tier.price}</span>
                       <span className="pb-2 text-sm text-muted">/mo</span>
                     </div>
                     <p className="mt-4 text-sm leading-6 text-muted-soft">{tier.text}</p>
@@ -217,7 +245,7 @@ export function LandingPage() {
                     <div className="grid gap-3 sm:grid-cols-2">
                       {tier.features.map((feature) => (
                         <div key={feature} className="flex items-center gap-2 text-sm text-active">
-                          <Check className="h-4 w-4 text-accent" />
+                          <Check className="h-4 w-4 text-muted-soft" />
                           {feature}
                         </div>
                       ))}
@@ -230,18 +258,20 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="px-6 pb-24 sm:px-10">
+      <section className="px-6 py-24 sm:px-10">
         <FadeIn>
-          <div className="mx-auto max-w-5xl rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,rgba(104,225,253,0.12),rgba(255,180,84,0.08))] p-8 text-center sm:p-12">
-            <Server className="mx-auto h-8 w-8 text-accent" />
-            <h2 className="mt-5 text-3xl font-semibold tracking-tight text-active">Ready to demo the product?</h2>
-            <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-muted-soft">
-              Open the mock node for a sponsor-friendly walkthrough, or sign in and connect a real agent.
+          <div className="mx-auto max-w-5xl rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.025))] p-8 text-center shadow-[0_30px_110px_rgba(0,0,0,0.42)] sm:p-12">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white p-2.5">
+              <img src="/logo.svg" alt="Trace logo" className="h-full w-full object-contain" />
+            </div>
+            <h2 className="mt-6 text-3xl font-semibold tracking-[-0.04em] text-active">Ready for the operational view?</h2>
+            <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-muted-soft">
+              Use the dashboard for real servers. Use the demo node when you need a clean sponsor walkthrough.
             </p>
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-              <Button variant="neon" size="lg" onClick={() => navigate('/servers/demo-server')}>Open demo node</Button>
-              <Link to="/register" className="inline-flex h-12 items-center justify-center rounded-lg px-6 text-sm font-medium text-active hover:text-accent">
-                Create account
+              <Button variant="neon" size="lg" onClick={() => navigate('/servers')}>Open dashboard</Button>
+              <Link to="/billing" className="inline-flex h-12 items-center justify-center rounded-lg px-6 text-sm font-medium text-muted-soft transition-colors hover:text-active">
+                Compare plans
               </Link>
             </div>
           </div>
@@ -251,14 +281,16 @@ export function LandingPage() {
   );
 }
 
-function MetricCard({ icon: Icon, label, value, tone }: { icon: React.ElementType; label: string; value: string; tone: 'cyan' | 'amber' }) {
+function FeatureCard({ icon: Icon, title, text }: { icon: React.ElementType; title: string; text: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-      <div className="flex items-center justify-between">
-        <Icon className={tone === 'cyan' ? 'h-4 w-4 text-accent' : 'h-4 w-4 text-amber-soft'} />
-        <span className="text-[10px] uppercase tracking-[0.16em] text-muted">{label}</span>
-      </div>
-      <p className="mt-5 font-mono text-2xl text-active">{value}</p>
-    </div>
+    <FadeIn>
+      <Card hover={false} className="h-full p-6 transition-colors hover:border-white/20 hover:bg-white/[0.045]">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+          <Icon className="h-5 w-5 text-active" />
+        </div>
+        <h3 className="mt-6 text-lg font-semibold text-active">{title}</h3>
+        <p className="mt-2 text-sm leading-6 text-muted-soft">{text}</p>
+      </Card>
+    </FadeIn>
   );
 }

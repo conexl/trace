@@ -5,28 +5,28 @@ export default {
   theme: {
     extend: {
       colors: {
-        canvas: '#071013',
-        surface: '#0D171B',
-        'surface-elevated': '#132229',
+        canvas: '#050505',
+        surface: '#0A0A0A',
+        'surface-elevated': '#111111',
         border: {
-          DEFAULT: 'rgba(178, 218, 224, 0.14)',
-          focus: 'rgba(104, 225, 253, 0.35)',
-          glow: 'rgba(104, 225, 253, 0.36)',
+          DEFAULT: 'rgba(255, 255, 255, 0.10)',
+          focus: 'rgba(255, 255, 255, 0.26)',
+          glow: 'rgba(255, 255, 255, 0.22)',
         },
         accent: {
-          DEFAULT: '#68E1FD',
-          muted: 'rgba(104, 225, 253, 0.08)',
-          glow: 'rgba(104, 225, 253, 0.16)',
-          strong: 'rgba(104, 225, 253, 0.35)',
+          DEFAULT: '#FFFFFF',
+          muted: 'rgba(255, 255, 255, 0.07)',
+          glow: 'rgba(255, 255, 255, 0.14)',
+          strong: 'rgba(255, 255, 255, 0.28)',
         },
         muted: {
-          DEFAULT: '#78929A',
-          soft: '#B6C8CC',
+          DEFAULT: '#8A8A8A',
+          soft: '#C7C7C7',
         },
-        active: '#F6FBF8',
+        active: '#FFFFFF',
         amber: {
-          muted: '#B7791F',
-          soft: '#FFB454',
+          muted: '#A3A3A3',
+          soft: '#D4D4D4',
         },
       },
       fontFamily: {
@@ -38,8 +38,8 @@ export default {
         tight: '-0.02em',
       },
       boxShadow: {
-        'accent-glow': '0 0 26px rgba(104, 225, 253, 0.18)',
-        'accent-glow-strong': '0 0 38px rgba(104, 225, 253, 0.32)',
+        'accent-glow': '0 0 26px rgba(255, 255, 255, 0.12)',
+        'accent-glow-strong': '0 0 38px rgba(255, 255, 255, 0.20)',
       },
       animation: {
         'pulse-slow': 'pulse-ring 2s cubic-bezier(0, 0, 0.2, 1) infinite',
@@ -57,7 +57,7 @@ export default {
       },
       backgroundImage: {
         noise:
-          "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.04'/%3E%3C/svg%3E\")",
+          "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.028'/%3E%3C/svg%3E\")",
       },
     },
   },

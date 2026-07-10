@@ -52,7 +52,7 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
             className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500"
             animate={{ opacity: isHovered ? 1 : 0 }}
             style={{
-              background: `radial-gradient(400px circle at ${position.x}px ${position.y}px, rgba(0, 245, 118, 0.06), transparent 60%)`,
+              background: `radial-gradient(400px circle at ${position.x}px ${position.y}px, rgba(255, 255, 255, 0.06), transparent 60%)`,
             }}
           />
         )}
