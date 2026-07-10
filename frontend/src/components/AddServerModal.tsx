@@ -86,9 +86,9 @@ export function AddServerModal({ open, onOpenChange, initialPairing, initialAgen
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100vh-2rem)] max-w-3xl overflow-y-auto p-0">
+      <DialogContent className="max-w-none overflow-visible p-0 sm:max-w-4xl">
         <DialogHeader>
-          <div className="border-b border-white/10 px-5 pb-4 pt-5 sm:px-6">
+          <div className="border-b border-white/10 px-5 pb-4 pt-5 pr-12 sm:px-6 sm:pr-14">
             <DialogTitle className="flex items-center gap-2">
               <Terminal className="h-4 w-4 text-accent" />
               Add server
@@ -99,7 +99,7 @@ export function AddServerModal({ open, onOpenChange, initialPairing, initialAgen
           </div>
         </DialogHeader>
 
-        <div className="space-y-4 px-5 py-5 sm:px-6">
+        <div className="max-h-[calc(100vh-14rem)] space-y-4 overflow-y-auto px-5 py-5 sm:max-h-[min(680px,calc(100vh-14rem))] sm:px-6">
           <div className="grid min-w-0 gap-3 md:grid-cols-[1fr_auto] md:items-end">
             <div className="min-w-0 space-y-1.5">
               <label className="text-xs font-mono text-muted">Agent name</label>
@@ -191,15 +191,15 @@ export function AddServerModal({ open, onOpenChange, initialPairing, initialAgen
               {error}
             </p>
           )}
+        </div>
 
-          <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
-            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
-              Close
-            </Button>
-            <Button variant="neon" size="sm" onClick={() => copyValue(installCommand, 'command')} disabled={!pairing} className="w-full sm:w-auto">
-              {copied === 'command' ? 'Copied' : 'Copy install command'}
-            </Button>
-          </div>
+        <div className="flex flex-col-reverse gap-2 border-t border-white/10 bg-surface/95 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+          <Button variant="neon" size="sm" onClick={() => copyValue(installCommand, 'command')} disabled={!pairing} className="w-full sm:w-auto">
+            {copied === 'command' ? 'Copied' : 'Copy install command'}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
