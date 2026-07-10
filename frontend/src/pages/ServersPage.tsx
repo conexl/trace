@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { LayoutGroup, AnimatePresence, motion } from 'framer-motion';
-import { Plus } from 'lucide-react';
-import { useOutletContext } from 'react-router-dom';
+import { Crown, Plus } from 'lucide-react';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useServers } from '@/hooks/useServers';
 import type { LayoutContext } from '@/components/Layout';
@@ -12,14 +12,21 @@ import { Card } from '@/components/ui/Card';
 
 export function ServersPage() {
   const { data: servers, loading } = useServers();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { onAuthRequired } = useOutletContext<LayoutContext>();
+  const navigate = useNavigate();
   const [modalOpen, setModalOpen] = React.useState(false);
   const hasServers = (servers?.length ?? 0) > 0;
+  const serverLimit = user?.subscription.limits.max_servers ?? 1;
+  const atServerLimit = isAuthenticated && (servers?.length ?? 0) >= serverLimit;
 
   const handleAddClick = () => {
     if (!isAuthenticated) {
       onAuthRequired();
+      return;
+    }
+    if (atServerLimit) {
+      navigate('/billing');
       return;
     }
     setModalOpen(true);
@@ -35,7 +42,7 @@ export function ServersPage() {
       className="flex flex-1 flex-col items-center justify-center"
     >
       <NeonButton layoutId="add-server-action" onClick={handleAddClick}>
-        Добавить первый сервер
+        {atServerLimit ? 'Upgrade for more servers' : 'Добавить первый сервер'}
       </NeonButton>
       {!isAuthenticated && (
         <motion.p
@@ -83,10 +90,22 @@ export function ServersPage() {
               className="w-full"
             >
               <div className="mb-6 flex items-center justify-between">
-                <h1 className="text-2xl font-medium tracking-tight text-active">Узлы</h1>
-                <span className="font-mono text-xs text-muted">
-                  {servers?.length} node{servers?.length !== 1 ? 's' : ''}
-                </span>
+                <div>
+                  <h1 className="text-2xl font-medium tracking-tight text-active">Узлы</h1>
+                  <p className="mt-1 text-sm text-muted">
+                    {servers?.length} / {serverLimit} nodes on {user?.subscription.plan ?? 'free'}
+                  </p>
+                </div>
+                {atServerLimit && (
+                  <button
+                    type="button"
+                    onClick={() => navigate('/billing')}
+                    className="flex items-center gap-2 rounded-full border border-amber-soft/30 bg-amber-soft/10 px-3 py-1.5 text-xs font-medium text-amber-soft"
+                  >
+                    <Crown className="h-3.5 w-3.5" />
+                    Free limit reached
+                  </button>
+                )}
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -98,9 +117,15 @@ export function ServersPage() {
                     onClick={handleAddClick}
                   >
                     <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface">
-                      <Plus className="h-5 w-5 text-accent" />
+                      {atServerLimit ? (
+                        <Crown className="h-5 w-5 text-amber-soft" />
+                      ) : (
+                        <Plus className="h-5 w-5 text-accent" />
+                      )}
                     </div>
-                    <span className="text-sm font-medium tracking-tight text-muted">Добавить узел</span>
+                    <span className="text-sm font-medium tracking-tight text-muted">
+                      {atServerLimit ? 'Upgrade to add nodes' : 'Добавить узел'}
+                    </span>
                   </Card>
                 </motion.div>
 

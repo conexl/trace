@@ -1,0 +1,194 @@
+import * as React from 'react';
+import { motion } from 'framer-motion';
+import { Check, Crown, Lock, Sparkles, Zap } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { updateBillingPlan } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import type { SubscriptionPlan } from '@/lib/types';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+
+const planCards: {
+  plan: SubscriptionPlan;
+  name: string;
+  price: string;
+  eyebrow: string;
+  description: string;
+  features: string[];
+}[] = [
+  {
+    plan: 'free',
+    name: 'Free',
+    price: '$0',
+    eyebrow: 'For one home node',
+    description: 'Core monitoring for a single server without remote control.',
+    features: ['1 connected server', '24h metric retention', 'Alerts and incidents', 'Read-only dashboard'],
+  },
+  {
+    plan: 'plus',
+    name: 'Plus',
+    price: '$12',
+    eyebrow: 'For serious homelabs',
+    description: 'The control plane: automation, AI triage, notifications and deeper history.',
+    features: [
+      '10 connected servers',
+      '30 day metric retention',
+      'Remote tasks and service actions',
+      'AI incident analysis',
+      'Telegram notifications',
+      'Agent config management',
+    ],
+  },
+];
+
+export function BillingPage() {
+  const { user, isAuthenticated, refreshUser } = useAuth();
+  const navigate = useNavigate();
+  const [pendingPlan, setPendingPlan] = React.useState<SubscriptionPlan | null>(null);
+  const [error, setError] = React.useState('');
+  const currentPlan = user?.subscription.plan ?? 'free';
+
+  const changePlan = async (plan: SubscriptionPlan) => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    setError('');
+    setPendingPlan(plan);
+    try {
+      await updateBillingPlan(plan);
+      await refreshUser();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Plan update failed');
+    } finally {
+      setPendingPlan(null);
+    }
+  };
+
+  return (
+    <main className="flex flex-1 flex-col px-6 py-24 sm:px-10">
+      <section className="mx-auto w-full max-w-6xl">
+        <motion.div
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          className="mb-10 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]"
+        >
+          <div>
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-xs font-medium text-accent">
+              <Sparkles className="h-3.5 w-3.5" />
+              SaaS billing preview
+            </div>
+            <h1 className="max-w-3xl text-balance text-4xl font-semibold tracking-tight text-active sm:text-5xl">
+              Choose how much control your homelab needs.
+            </h1>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-muted-soft">
+              Free keeps observability open. Plus unlocks the parts that can change production state:
+              remote execution, service actions, AI triage and notifications.
+            </p>
+          </div>
+
+          <Card hover={false} className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-muted">Current plan</p>
+                <h2 className="mt-2 text-2xl font-semibold capitalize text-active">{currentPlan}</h2>
+              </div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-accent/30 bg-accent/10">
+                {currentPlan === 'plus' ? (
+                  <Crown className="h-5 w-5 text-accent" />
+                ) : (
+                  <Lock className="h-5 w-5 text-accent" />
+                )}
+              </div>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-border bg-canvas/70 p-3">
+                <p className="text-xs text-muted">Server limit</p>
+                <p className="mt-1 font-mono text-lg text-active">{user?.subscription.limits.max_servers ?? 1}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-canvas/70 p-3">
+                <p className="text-xs text-muted">Retention</p>
+                <p className="mt-1 font-mono text-lg text-active">
+                  {user?.subscription.limits.retention_hours ?? 24}h
+                </p>
+              </div>
+            </div>
+          </Card>
+        </motion.div>
+
+        {error && (
+          <div className="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+            {error}
+          </div>
+        )}
+
+        <div className="grid gap-5 lg:grid-cols-2">
+          {planCards.map((plan, idx) => {
+            const active = currentPlan === plan.plan;
+            const plus = plan.plan === 'plus';
+            return (
+              <motion.div
+                key={plan.plan}
+                initial={{ opacity: 0, y: 22 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.08, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <Card
+                  hover={false}
+                  className={
+                    plus
+                      ? 'min-h-[520px] border-accent/35 bg-[linear-gradient(140deg,rgba(5,16,18,0.96),rgba(11,13,19,0.92))] p-6 shadow-accent-glow'
+                      : 'min-h-[520px] p-6'
+                  }
+                >
+                  <div className="flex h-full flex-col">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.2em] text-muted">{plan.eyebrow}</p>
+                        <h2 className="mt-3 text-3xl font-semibold text-active">{plan.name}</h2>
+                      </div>
+                      {plus && (
+                        <div className="rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs text-accent">
+                          Popular
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-8 flex items-end gap-2">
+                      <span className="text-5xl font-semibold tracking-tight text-active">{plan.price}</span>
+                      <span className="pb-2 text-sm text-muted">/ month</span>
+                    </div>
+                    <p className="mt-4 min-h-12 text-sm leading-6 text-muted-soft">{plan.description}</p>
+                    <div className="my-6 h-px bg-border" />
+                    <div className="space-y-3">
+                      {plan.features.map((feature) => (
+                        <div key={feature} className="flex items-center gap-3 text-sm text-active">
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent/10 text-accent">
+                            <Check className="h-3 w-3" />
+                          </span>
+                          {feature}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-auto pt-8">
+                      <Button
+                        variant={plus ? 'neon' : 'default'}
+                        size="lg"
+                        className="w-full gap-2"
+                        disabled={active || pendingPlan === plan.plan}
+                        onClick={() => changePlan(plan.plan)}
+                      >
+                        {plus && <Zap className="h-4 w-4" />}
+                        {active ? 'Current plan' : pendingPlan === plan.plan ? 'Updating...' : plus ? 'Upgrade to Plus' : 'Switch to Free'}
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              </motion.div>
+            );
+          })}
+        </div>
+      </section>
+    </main>
+  );
+}

@@ -9,6 +9,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	drivermongo "go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type MongoStore struct {
@@ -42,6 +43,23 @@ func (s *MongoStore) GetByEmail(ctx context.Context, email string) (domain.User,
 			return domain.User{}, ErrNotFound
 		}
 		return domain.User{}, fmt.Errorf("find user: %w", err)
+	}
+	return user, nil
+}
+
+func (s *MongoStore) UpdatePlan(ctx context.Context, email string, plan string) (domain.User, error) {
+	var user domain.User
+	err := s.collection().FindOneAndUpdate(
+		ctx,
+		bson.M{"_id": email},
+		bson.M{"$set": bson.M{"plan": domain.NormalizePlan(plan)}},
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	).Decode(&user)
+	if err != nil {
+		if err == drivermongo.ErrNoDocuments {
+			return domain.User{}, ErrNotFound
+		}
+		return domain.User{}, fmt.Errorf("update user plan: %w", err)
 	}
 	return user, nil
 }

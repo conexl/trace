@@ -182,6 +182,35 @@ export interface ServersResponse {
   servers: ServerSummary[];
 }
 
+export type SubscriptionPlan = 'free' | 'plus';
+
+export interface PlanLimits {
+  max_servers: number;
+  retention_hours: number;
+}
+
+export interface PlanFeatures {
+  remote_tasks: boolean;
+  service_actions: boolean;
+  ai_incident_analysis: boolean;
+  telegram_notifications: boolean;
+  config_management: boolean;
+  audit_log: boolean;
+}
+
+export interface Subscription {
+  plan: SubscriptionPlan;
+  status: 'active' | string;
+  limits: PlanLimits;
+  features: PlanFeatures;
+}
+
+export interface AuthUser {
+  email: string;
+  role: string;
+  subscription: Subscription;
+}
+
 export interface AgentDesiredConfig {
   agent: {
     name: string;

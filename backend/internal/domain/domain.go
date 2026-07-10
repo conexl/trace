@@ -131,12 +131,87 @@ const (
 	RoleViewer = "viewer"
 )
 
+const (
+	PlanFree = "free"
+	PlanPlus = "plus"
+)
+
+type PlanLimits struct {
+	MaxServers     int `json:"max_servers"`
+	RetentionHours int `json:"retention_hours"`
+}
+
+type PlanFeatures struct {
+	RemoteTasks           bool `json:"remote_tasks"`
+	ServiceActions        bool `json:"service_actions"`
+	AIIncidentAnalysis    bool `json:"ai_incident_analysis"`
+	TelegramNotifications bool `json:"telegram_notifications"`
+	ConfigManagement      bool `json:"config_management"`
+	AuditLog              bool `json:"audit_log"`
+}
+
+type Subscription struct {
+	Plan     string       `json:"plan" bson:"plan"`
+	Status   string       `json:"status" bson:"status"`
+	Limits   PlanLimits   `json:"limits" bson:"-"`
+	Features PlanFeatures `json:"features" bson:"-"`
+}
+
 type User struct {
 	Email        string    `json:"email" bson:"_id"`
 	PasswordHash string    `json:"-" bson:"password_hash"`
 	Role         string    `json:"role" bson:"role"`
+	Plan         string    `json:"plan" bson:"plan"`
 	Verified     bool      `json:"verified" bson:"verified"`
 	CreatedAt    time.Time `json:"created_at" bson:"created_at"`
+}
+
+func NormalizePlan(plan string) string {
+	switch plan {
+	case PlanPlus:
+		return PlanPlus
+	default:
+		return PlanFree
+	}
+}
+
+func EntitlementsForPlan(plan string) Subscription {
+	switch NormalizePlan(plan) {
+	case PlanPlus:
+		return Subscription{
+			Plan:   PlanPlus,
+			Status: "active",
+			Limits: PlanLimits{
+				MaxServers:     10,
+				RetentionHours: 24 * 30,
+			},
+			Features: PlanFeatures{
+				RemoteTasks:           true,
+				ServiceActions:        true,
+				AIIncidentAnalysis:    true,
+				TelegramNotifications: true,
+				ConfigManagement:      true,
+				AuditLog:              true,
+			},
+		}
+	default:
+		return Subscription{
+			Plan:   PlanFree,
+			Status: "active",
+			Limits: PlanLimits{
+				MaxServers:     1,
+				RetentionHours: 24,
+			},
+			Features: PlanFeatures{
+				RemoteTasks:           false,
+				ServiceActions:        false,
+				AIIncidentAnalysis:    false,
+				TelegramNotifications: false,
+				ConfigManagement:      false,
+				AuditLog:              false,
+			},
+		}
+	}
 }
 
 type AgentDesiredConfig struct {

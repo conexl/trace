@@ -14,6 +14,7 @@ const ServerDetailPage = React.lazy(() => import('@/pages/ServerDetailPage').the
 const AlertsPage = React.lazy(() => import('@/pages/AlertsPage').then((m) => ({ default: m.AlertsPage })));
 const TasksPage = React.lazy(() => import('@/pages/TasksPage').then((m) => ({ default: m.TasksPage })));
 const IncidentsPage = React.lazy(() => import('@/pages/IncidentsPage').then((m) => ({ default: m.IncidentsPage })));
+const BillingPage = React.lazy(() => import('@/pages/BillingPage').then((m) => ({ default: m.BillingPage })));
 
 function App() {
   return (
@@ -53,6 +54,7 @@ function AppContent() {
                 <Route path="/alerts" element={<AlertsPage />} />
                 <Route path="/incidents" element={<IncidentsPage />} />
                 <Route path="/tasks" element={<TasksPage />} />
+                <Route path="/billing" element={<BillingPage />} />
               </Route>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />

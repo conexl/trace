@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,7 +7,7 @@
 @layer base {
   :root {
     color-scheme: dark;
-    font-family: Inter, system-ui, sans-serif;
+    font-family: 'Space Grotesk', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -16,14 +16,19 @@
   body,
   #root {
     min-height: 100svh;
-    background-color: #06070A;
-    color: #F8FAFC;
+    background-color: #071013;
+    color: #F6FBF8;
   }
 
   body {
     margin: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.035'/%3E%3C/svg%3E");
+    background-image:
+      radial-gradient(circle at 12% 8%, rgba(104, 225, 253, 0.16), transparent 28rem),
+      radial-gradient(circle at 86% 14%, rgba(255, 180, 84, 0.12), transparent 24rem),
+      linear-gradient(140deg, rgba(255, 255, 255, 0.035), transparent 35%),
+      url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.035'/%3E%3C/svg%3E");
     background-repeat: repeat;
+    background-attachment: fixed;
   }
 
   #root {
@@ -32,8 +37,8 @@
   }
 
   ::selection {
-    background-color: rgba(0, 245, 118, 0.2);
-    color: #F8FAFC;
+    background-color: rgba(104, 225, 253, 0.24);
+    color: #F6FBF8;
   }
 
   ::-webkit-scrollbar {
@@ -46,12 +51,12 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #1A1F2C;
+    background: rgba(104, 225, 253, 0.24);
     border-radius: 3px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #263147;
+    background: rgba(255, 180, 84, 0.45);
   }
 }
 

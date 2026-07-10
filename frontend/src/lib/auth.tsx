@@ -1,18 +1,20 @@
 import * as React from 'react';
 import { getMe, logout as apiLogout } from './api';
+import type { AuthUser } from './types';
 
 interface AuthContextValue {
-  user: { email: string; role: string } | null;
+  user: AuthUser | null;
   isAuthenticated: boolean;
   loading: boolean;
   login: () => void;
+  refreshUser: () => Promise<void>;
   logout: () => void;
 }
 
 const AuthContext = React.createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = React.useState<{ email: string; role: string } | null>(null);
+  const [user, setUser] = React.useState<AuthUser | null>(null);
   const [loading, setLoading] = React.useState(true);
 
   const checkAuth = React.useCallback(async () => {
@@ -45,9 +47,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: !!user,
       loading,
       login,
+      refreshUser: checkAuth,
       logout,
     }),
-    [user, loading, login, logout]
+    [user, loading, login, checkAuth, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

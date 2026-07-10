@@ -28,6 +28,7 @@ var (
 type Session struct {
 	Email     string
 	Role      string
+	Plan      string
 	ExpiresAt time.Time
 }
 
@@ -71,6 +72,7 @@ func (s *Service) Register(ctx context.Context, email, password string) (string,
 		Email:        email,
 		PasswordHash: string(hash),
 		Role:         domain.RoleMember,
+		Plan:         domain.PlanFree,
 		Verified:     false,
 		CreatedAt:    time.Now().UTC(),
 	}
@@ -102,6 +104,7 @@ func (s *Service) RegisterAdmin(ctx context.Context, adminToken, email, password
 		Email:        email,
 		PasswordHash: string(hash),
 		Role:         domain.RoleMember,
+		Plan:         domain.PlanFree,
 		Verified:     false,
 		CreatedAt:    time.Now().UTC(),
 	}
@@ -169,6 +172,28 @@ func (s *Service) Logout(ctx context.Context, token string) error {
 	return s.sessionStore.Delete(ctx, token)
 }
 
+func (s *Service) User(ctx context.Context, email string) (domain.User, error) {
+	user, err := s.store.GetByEmail(ctx, strings.ToLower(strings.TrimSpace(email)))
+	if err != nil {
+		return domain.User{}, err
+	}
+	user.Plan = domain.NormalizePlan(user.Plan)
+	return user, nil
+}
+
+func (s *Service) UpdatePlan(ctx context.Context, email string, plan string) (domain.User, error) {
+	if domain.NormalizePlan(plan) != plan {
+		return domain.User{}, fmt.Errorf("unsupported plan %q", plan)
+	}
+	user, err := s.store.UpdatePlan(ctx, strings.ToLower(strings.TrimSpace(email)), plan)
+	if err != nil {
+		return domain.User{}, err
+	}
+	user.Plan = domain.NormalizePlan(user.Plan)
+	s.updateCachedPlan(user.Email, user.Plan)
+	return user, nil
+}
+
 func (s *Service) IsAdminToken(token string) bool {
 	return s.cfg.Auth.AdminToken != "" && token == s.cfg.Auth.AdminToken
 }
@@ -199,6 +224,7 @@ func (s *Service) createSession(user domain.User) string {
 	session := Session{
 		Email:     user.Email,
 		Role:      user.Role,
+		Plan:      domain.NormalizePlan(user.Plan),
 		ExpiresAt: time.Now().Add(s.cfg.Auth.SessionTTL),
 	}
 	s.mu.Lock()
@@ -207,4 +233,16 @@ func (s *Service) createSession(user domain.User) string {
 	// Best-effort persistence; failures are logged by caller if needed.
 	_ = s.sessionStore.Set(context.Background(), token, session)
 	return token
+}
+
+func (s *Service) updateCachedPlan(email string, plan string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for token, session := range s.sessionsCache {
+		if session.Email == email {
+			session.Plan = plan
+			s.sessionsCache[token] = session
+			_ = s.sessionStore.Set(context.Background(), token, session)
+		}
+	}
 }

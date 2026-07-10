@@ -105,8 +105,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /v1/auth/register", ratelimit.Middleware(s.registerLimiter, s.cfg.HTTP.TrustForwardedHeaders, s.handleRegister))
 	s.mux.HandleFunc("POST /v1/auth/logout", s.handleLogout)
 	s.mux.HandleFunc("GET /v1/auth/me", s.requireAuth(s.handleAuthMe))
+	s.mux.HandleFunc("GET /v1/billing/plan", s.requireAuth(s.handleGetBillingPlan))
+	s.mux.HandleFunc("POST /v1/billing/plan", s.requireAuth(s.handleUpdateBillingPlan))
 	s.mux.HandleFunc("GET /v1/notifications/telegram", s.requireAuth(s.handleGetTelegramNotificationStatus))
-	s.mux.HandleFunc("POST /v1/notifications/telegram/link", s.requireAuth(s.handleCreateTelegramNotificationLink))
+	s.mux.HandleFunc("POST /v1/notifications/telegram/link", s.requirePlus(s.handleCreateTelegramNotificationLink))
 	s.mux.HandleFunc("DELETE /v1/notifications/telegram", s.requireAuth(s.handleDeleteTelegramNotificationLink))
 	s.mux.HandleFunc("POST /v1/pairing/claim", s.handlePairingClaim)
 	s.mux.HandleFunc("POST /v1/agent/snapshots", s.requireAgent(s.handleIngest))
@@ -118,17 +120,17 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /v1/incidents/metrics", s.requireAuth(s.handleIncidentMetrics))
 	s.mux.HandleFunc("GET /v1/incidents/actions", s.requireAuth(s.handleGetIncidentActions))
 	s.mux.HandleFunc("GET /v1/incidents/", s.requireAuth(s.handleGetIncident))
-	s.mux.HandleFunc("POST /v1/incidents/", s.requireAdmin(s.handleIncidentAction))
-	s.mux.HandleFunc("POST /v1/incidents/{id}/analyze", s.requireAdmin(s.handleAnalyzeIncident))
+	s.mux.HandleFunc("POST /v1/incidents/", s.requirePlus(s.handleIncidentAction))
+	s.mux.HandleFunc("POST /v1/incidents/{id}/analyze", s.requirePlus(s.handleAnalyzeIncident))
 	s.mux.HandleFunc("GET /v1/servers", s.requireAuth(s.handleListServers))
-	s.mux.HandleFunc("POST /v1/servers/", s.requireAdmin(s.handleServerAction))
+	s.mux.HandleFunc("POST /v1/servers/", s.requirePlus(s.handleServerAction))
 	s.mux.HandleFunc("GET /v1/tasks/", s.requireAuth(s.handleGetTask))
-	s.mux.HandleFunc("GET /v1/tasks", s.requireAdmin(s.handleListTasks))
+	s.mux.HandleFunc("GET /v1/tasks", s.requireAuth(s.handleListTasks))
 	s.mux.HandleFunc("GET /v1/servers/", s.requireAuth(s.handleGetServer))
 	s.mux.HandleFunc("GET /v1/servers/{id}/config", s.requireAuth(s.handleGetServerConfig))
 	s.mux.HandleFunc("GET /v1/servers/{id}/metrics", s.requireAuth(s.handleGetMetrics))
-	s.mux.HandleFunc("POST /v1/servers/{id}/config", s.requireAdmin(s.handleSetServerConfig))
-	s.mux.HandleFunc("GET /v1/audit", s.requireAdmin(s.handleListAudit))
+	s.mux.HandleFunc("POST /v1/servers/{id}/config", s.requirePlus(s.handleSetServerConfig))
+	s.mux.HandleFunc("GET /v1/audit", s.requirePlus(s.handleListAudit))
 	s.mux.HandleFunc("GET /v1/events", s.requireAuth(s.handleEvents))
 }
 
@@ -185,19 +187,64 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
-	token := s.getToken(r)
-	session, ok := s.auth.ValidateToken(token)
-	if !ok {
-		session, ok, _ = s.auth.LoadSession(r.Context(), token)
-	}
+	session, ok := s.currentSession(r)
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "not logged in")
 		return
 	}
+	subscription := s.subscriptionForSession(r.Context(), session)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"email": session.Email,
-		"role":  session.Role,
+		"email":        session.Email,
+		"role":         session.Role,
+		"subscription": subscription,
 	})
+}
+
+func (s *Server) handleGetBillingPlan(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.currentSession(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "not logged in")
+		return
+	}
+	writeJSON(w, http.StatusOK, s.subscriptionForSession(r.Context(), session))
+}
+
+func (s *Server) handleUpdateBillingPlan(w http.ResponseWriter, r *http.Request) {
+	session, ok := s.currentSession(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "not logged in")
+		return
+	}
+	if s.auth.IsAdminToken(s.getToken(r)) {
+		writeError(w, http.StatusBadRequest, "dev admin token does not have a billable account")
+		return
+	}
+	defer r.Body.Close()
+	var req struct {
+		Plan string `json:"plan"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid billing request")
+		return
+	}
+	req.Plan = strings.TrimSpace(strings.ToLower(req.Plan))
+	if req.Plan != domain.PlanFree && req.Plan != domain.PlanPlus {
+		writeError(w, http.StatusBadRequest, "plan must be free or plus")
+		return
+	}
+	user, err := s.auth.UpdatePlan(r.Context(), session.Email, req.Plan)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "update billing plan failed")
+		return
+	}
+	subscription := domain.EntitlementsForPlan(user.Plan)
+	_ = s.audit.Log(r.Context(), domain.AuditLog{
+		UserEmail: session.Email,
+		Action:    "billing-plan-change",
+		Target:    session.Email,
+		Details:   fmt.Sprintf("plan: %s", subscription.Plan),
+	})
+	writeJSON(w, http.StatusOK, subscription)
 }
 
 func (s *Server) handleGetTelegramNotificationStatus(w http.ResponseWriter, r *http.Request) {
@@ -761,6 +808,26 @@ func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func (s *Server) requirePlus(next http.HandlerFunc) http.HandlerFunc {
+	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		token := s.getToken(r)
+		if s.auth.IsAdminToken(token) {
+			next(w, r)
+			return
+		}
+		session, ok := s.currentSession(r)
+		if !ok {
+			writeError(w, http.StatusUnauthorized, "authentication required")
+			return
+		}
+		if s.subscriptionForSession(r.Context(), session).Plan != domain.PlanPlus {
+			writePaymentRequired(w, "This action requires Trace Plus.")
+			return
+		}
+		next(w, r)
+	})
+}
+
 func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := s.getToken(r)
@@ -778,6 +845,31 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 		}
 		writeError(w, http.StatusUnauthorized, "authentication required")
 	}
+}
+
+func (s *Server) currentSession(r *http.Request) (auth.Session, bool) {
+	token := s.getToken(r)
+	if session, ok := s.auth.ValidateToken(token); ok {
+		session.Plan = domain.NormalizePlan(session.Plan)
+		return session, true
+	}
+	if session, ok, err := s.auth.LoadSession(r.Context(), token); err == nil && ok {
+		session.Plan = domain.NormalizePlan(session.Plan)
+		return session, true
+	}
+	if s.auth.IsAdminToken(token) {
+		return auth.Session{Email: "admin-token", Role: domain.RoleAdmin, Plan: domain.PlanPlus, ExpiresAt: time.Now().Add(time.Hour)}, true
+	}
+	return auth.Session{}, false
+}
+
+func (s *Server) subscriptionForSession(ctx context.Context, session auth.Session) domain.Subscription {
+	if session.Email != "" && session.Email != "admin-token" {
+		if user, err := s.auth.User(ctx, session.Email); err == nil {
+			return domain.EntitlementsForPlan(user.Plan)
+		}
+	}
+	return domain.EntitlementsForPlan(session.Plan)
 }
 
 func (s *Server) requireOwner(next http.HandlerFunc) http.HandlerFunc {
@@ -1169,6 +1261,14 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]any{"error": message})
+}
+
+func writePaymentRequired(w http.ResponseWriter, message string) {
+	writeJSON(w, http.StatusPaymentRequired, map[string]any{
+		"error":         message,
+		"code":          "plan_required",
+		"required_plan": domain.PlanPlus,
+	})
 }
 
 func URLForServer(id string) string {

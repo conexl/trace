@@ -5,41 +5,41 @@ export default {
   theme: {
     extend: {
       colors: {
-        canvas: '#06070A',
-        surface: '#0B0D13',
-        'surface-elevated': '#11131A',
+        canvas: '#071013',
+        surface: '#0D171B',
+        'surface-elevated': '#132229',
         border: {
-          DEFAULT: '#1A1F2C',
-          focus: '#263147',
-          glow: '#2B374E',
+          DEFAULT: 'rgba(178, 218, 224, 0.14)',
+          focus: 'rgba(104, 225, 253, 0.35)',
+          glow: 'rgba(104, 225, 253, 0.36)',
         },
         accent: {
-          DEFAULT: '#00F576',
-          muted: 'rgba(0, 245, 118, 0.08)',
-          glow: 'rgba(0, 245, 118, 0.15)',
-          strong: 'rgba(0, 245, 118, 0.35)',
+          DEFAULT: '#68E1FD',
+          muted: 'rgba(104, 225, 253, 0.08)',
+          glow: 'rgba(104, 225, 253, 0.16)',
+          strong: 'rgba(104, 225, 253, 0.35)',
         },
         muted: {
-          DEFAULT: '#64748B',
-          soft: '#94A3B8',
+          DEFAULT: '#78929A',
+          soft: '#B6C8CC',
         },
-        active: '#F8FAFC',
+        active: '#F6FBF8',
         amber: {
-          muted: '#B45309',
-          soft: '#F59E0B',
+          muted: '#B7791F',
+          soft: '#FFB454',
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+        sans: ['Space Grotesk', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['IBM Plex Mono', 'ui-monospace', 'monospace'],
       },
       letterSpacing: {
         tighter: '-0.04em',
         tight: '-0.02em',
       },
       boxShadow: {
-        'accent-glow': '0 0 20px rgba(0, 245, 118, 0.15)',
-        'accent-glow-strong': '0 0 28px rgba(0, 245, 118, 0.28)',
+        'accent-glow': '0 0 26px rgba(104, 225, 253, 0.18)',
+        'accent-glow-strong': '0 0 38px rgba(104, 225, 253, 0.32)',
       },
       animation: {
         'pulse-slow': 'pulse-ring 2s cubic-bezier(0, 0, 0.2, 1) infinite',

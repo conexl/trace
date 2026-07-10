@@ -15,6 +15,7 @@ var ErrNotFound = errors.New("user not found")
 type Store interface {
 	Create(ctx context.Context, user domain.User) error
 	GetByEmail(ctx context.Context, email string) (domain.User, error)
+	UpdatePlan(ctx context.Context, email string, plan string) (domain.User, error)
 	Count(ctx context.Context) (int, error)
 }
 
@@ -44,6 +45,18 @@ func (s *MemoryStore) GetByEmail(ctx context.Context, email string) (domain.User
 	if !ok {
 		return domain.User{}, ErrNotFound
 	}
+	return user, nil
+}
+
+func (s *MemoryStore) UpdatePlan(ctx context.Context, email string, plan string) (domain.User, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	user, ok := s.users[email]
+	if !ok {
+		return domain.User{}, ErrNotFound
+	}
+	user.Plan = domain.NormalizePlan(plan)
+	s.users[email] = user
 	return user, nil
 }
 

@@ -13,6 +13,9 @@ import type {
   IncidentMetrics,
   TelegramNotificationLink,
   TelegramNotificationStatus,
+  AuthUser,
+  Subscription,
+  SubscriptionPlan,
 } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
@@ -33,8 +36,8 @@ export async function login(email: string, password: string): Promise<void> {
   await response.json().catch(() => ({}));
 }
 
-export async function getMe(): Promise<{ email: string; role: string }> {
-  return request<{ email: string; role: string }>('/v1/auth/me');
+export async function getMe(): Promise<AuthUser> {
+  return request<AuthUser>('/v1/auth/me');
 }
 
 export async function logout(): Promise<void> {
@@ -87,6 +90,17 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export function getServers(): Promise<ServersResponse> {
   return request<ServersResponse>('/v1/servers');
+}
+
+export function getBillingPlan(): Promise<Subscription> {
+  return request<Subscription>('/v1/billing/plan');
+}
+
+export function updateBillingPlan(plan: SubscriptionPlan): Promise<Subscription> {
+  return request<Subscription>('/v1/billing/plan', {
+    method: 'POST',
+    body: JSON.stringify({ plan }),
+  });
 }
 
 export function getServer(id: string): Promise<ServerState> {

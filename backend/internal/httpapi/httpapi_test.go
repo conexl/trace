@@ -530,14 +530,18 @@ func TestRegisteredUserBecomesMemberAndCanUseProductActions(t *testing.T) {
 		t.Fatalf("me status = %d body=%s", w.Code, w.Body.String())
 	}
 	var me struct {
-		Email string `json:"email"`
-		Role  string `json:"role"`
+		Email        string              `json:"email"`
+		Role         string              `json:"role"`
+		Subscription domain.Subscription `json:"subscription"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &me); err != nil {
 		t.Fatal(err)
 	}
 	if me.Role != domain.RoleMember {
 		t.Fatalf("role = %q", me.Role)
+	}
+	if me.Subscription.Plan != domain.PlanFree || me.Subscription.Features.RemoteTasks {
+		t.Fatalf("subscription = %#v", me.Subscription)
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/v1/tasks", nil)
@@ -546,6 +550,53 @@ func TestRegisteredUserBecomesMemberAndCanUseProductActions(t *testing.T) {
 	server.securityHeaders(server.mux).ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("member should access product action endpoint: status = %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestFreePlanRequiresUpgradeForControlPlaneActions(t *testing.T) {
+	cfg := config.Config{State: config.StateConfig{OfflineAfter: time.Minute, MaxEvents: 10}}
+	server := newTestServer(t, cfg)
+	token := registerUser(t, server, "free@example.com", "password123", "")
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/servers/devbox/tasks", bytes.NewReader([]byte(`{"task_name":"disk-usage"}`)))
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusPaymentRequired {
+		t.Fatalf("free task enqueue status = %d body=%s", w.Code, w.Body.String())
+	}
+	var paywall struct {
+		Code         string `json:"code"`
+		RequiredPlan string `json:"required_plan"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &paywall); err != nil {
+		t.Fatal(err)
+	}
+	if paywall.Code != "plan_required" || paywall.RequiredPlan != domain.PlanPlus {
+		t.Fatalf("paywall = %#v", paywall)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/v1/billing/plan", bytes.NewReader([]byte(`{"plan":"plus"}`)))
+	req.Header.Set("Authorization", "Bearer "+token)
+	w = httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("upgrade status = %d body=%s", w.Code, w.Body.String())
+	}
+	var subscription domain.Subscription
+	if err := json.Unmarshal(w.Body.Bytes(), &subscription); err != nil {
+		t.Fatal(err)
+	}
+	if subscription.Plan != domain.PlanPlus || !subscription.Features.RemoteTasks {
+		t.Fatalf("subscription = %#v", subscription)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/v1/servers/devbox/tasks", bytes.NewReader([]byte(`{"task_name":"disk-usage"}`)))
+	req.Header.Set("Authorization", "Bearer "+token)
+	w = httptest.NewRecorder()
+	server.securityHeaders(server.mux).ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("plus task enqueue status = %d body=%s", w.Code, w.Body.String())
 	}
 }
 

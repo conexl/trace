@@ -70,7 +70,7 @@ func (s *MongoSessionStore) Get(ctx context.Context, token string) (Session, boo
 		}
 		return Session{}, false, fmt.Errorf("find session: %w", err)
 	}
-	return Session{Email: doc.Email, Role: doc.Role, ExpiresAt: doc.ExpiresAt}, true, nil
+	return Session{Email: doc.Email, Role: doc.Role, Plan: doc.Plan, ExpiresAt: doc.ExpiresAt}, true, nil
 }
 
 func (s *MongoSessionStore) Set(ctx context.Context, token string, session Session) error {
@@ -78,6 +78,7 @@ func (s *MongoSessionStore) Set(ctx context.Context, token string, session Sessi
 		Token:     token,
 		Email:     session.Email,
 		Role:      session.Role,
+		Plan:      session.Plan,
 		CreatedAt: time.Now().UTC(),
 		ExpiresAt: session.ExpiresAt,
 	}, options.Replace().SetUpsert(true))
@@ -107,6 +108,7 @@ type sessionDoc struct {
 	Token     string    `bson:"_id"`
 	Email     string    `bson:"email"`
 	Role      string    `bson:"role"`
+	Plan      string    `bson:"plan"`
 	CreatedAt time.Time `bson:"created_at"`
 	ExpiresAt time.Time `bson:"expires_at"`
 }

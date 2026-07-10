@@ -22,7 +22,7 @@ export function Layout() {
     <div className="relative flex min-h-screen flex-col">
       <Header onLoginClick={() => setAuthOpen(true)} />
       <AnimatePresence mode="wait">
-        <PageTransition key={location.pathname} className="flex min-h-screen flex-col">
+        <PageTransition key={location.pathname} className="flex min-h-screen flex-col pt-32 lg:pt-20">
           <Outlet context={contextValue} />
         </PageTransition>
       </AnimatePresence>
