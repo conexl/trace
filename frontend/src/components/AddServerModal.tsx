@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Check, Copy, Link2, RefreshCw, Terminal } from 'lucide-react';
+import { Check, Copy, RefreshCw, Terminal } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -26,18 +26,11 @@ export function AddServerModal({ open, onOpenChange, initialPairing, initialAgen
   const [pairing, setPairing] = React.useState<PairingCode | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [copied, setCopied] = React.useState<'command' | 'link' | null>(null);
+  const [copied, setCopied] = React.useState(false);
 
   const installCommand = pairing
     ? `curl -fsSL ${defaultOrigin}/install.sh | sudo env TRACE_ENDPOINT=${apiOrigin} TRACE_PAIRING_CODE=${pairing.code} TRACE_AGENT_NAME=${shellEscape(agentName || 'home-server')} sh`
     : `curl -fsSL ${defaultOrigin}/install.sh | sudo env TRACE_ENDPOINT=${apiOrigin} TRACE_PAIRING_CODE=<code> sh`;
-  const pairingLink = pairing
-    ? `${defaultOrigin}/servers?${new URLSearchParams({
-        pairing_code: pairing.code,
-        agent_name: agentName || 'home-server',
-        expires_at: pairing.expires_at,
-      }).toString()}`
-    : `${defaultOrigin}/servers?pairing_code=<code>`;
 
   const generateCode = React.useCallback(async () => {
     setLoading(true);
@@ -56,7 +49,7 @@ export function AddServerModal({ open, onOpenChange, initialPairing, initialAgen
     if (!open) {
       setPairing(null);
       setError(null);
-      setCopied(null);
+      setCopied(false);
       return;
     }
 
@@ -74,11 +67,11 @@ export function AddServerModal({ open, onOpenChange, initialPairing, initialAgen
     void generateCode();
   }, [generateCode, initialAgentName, initialPairing, open]);
 
-  const copyValue = async (value: string, kind: 'command' | 'link') => {
+  const copyCommand = async () => {
     try {
-      await navigator.clipboard.writeText(value);
-      setCopied(kind);
-      setTimeout(() => setCopied(null), 1500);
+      await navigator.clipboard.writeText(installCommand);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
     } catch {
       // Clipboard can be unavailable in embedded previews.
     }
@@ -141,43 +134,13 @@ export function AddServerModal({ open, onOpenChange, initialPairing, initialAgen
               {installCommand}
             </pre>
             <button
-              onClick={() => copyValue(installCommand, 'command')}
+              onClick={copyCommand}
               disabled={!pairing}
               className="absolute right-2 top-2 rounded-md p-1.5 text-muted transition-colors hover:bg-surface-elevated hover:text-active disabled:opacity-40"
               title="Copy"
             >
-              {copied === 'command' ? <Check className="h-4 w-4 text-accent" /> : <Copy className="h-4 w-4" />}
+              {copied ? <Check className="h-4 w-4 text-accent" /> : <Copy className="h-4 w-4" />}
             </button>
-          </div>
-
-          <div className="min-w-0 rounded-xl border border-white/10 bg-white/[0.025] p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <Link2 className="h-4 w-4 text-muted-soft" />
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted">Pairing link</p>
-                </div>
-                <a
-                  href={pairing ? pairingLink : undefined}
-                  className="mt-2 block max-w-full truncate font-mono text-xs text-active underline decoration-white/20 underline-offset-4 transition-colors hover:text-white"
-                >
-                  {pairingLink}
-                </a>
-                <p className="mt-2 text-xs leading-5 text-muted-soft">
-                  Contains a one-time secret. Share only with the operator installing this node.
-                </p>
-              </div>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => copyValue(pairingLink, 'link')}
-                disabled={!pairing}
-                className="shrink-0 gap-2"
-              >
-                {copied === 'link' ? <Check className="h-3.5 w-3.5 text-accent" /> : <Copy className="h-3.5 w-3.5" />}
-                {copied === 'link' ? 'Copied' : 'Copy link'}
-              </Button>
-            </div>
           </div>
 
           <div className="rounded-lg border border-border bg-canvas p-3 text-xs leading-6 text-muted-soft">
@@ -197,8 +160,8 @@ export function AddServerModal({ open, onOpenChange, initialPairing, initialAgen
           <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
             Close
           </Button>
-          <Button variant="neon" size="sm" onClick={() => copyValue(installCommand, 'command')} disabled={!pairing} className="w-full sm:w-auto">
-            {copied === 'command' ? 'Copied' : 'Copy install command'}
+          <Button variant="neon" size="sm" onClick={copyCommand} disabled={!pairing} className="w-full sm:w-auto">
+            {copied ? 'Copied' : 'Copy install command'}
           </Button>
         </div>
       </DialogContent>
