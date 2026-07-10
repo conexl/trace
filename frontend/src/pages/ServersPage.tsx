@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { LayoutGroup, AnimatePresence, motion } from 'framer-motion';
-import { Crown, Plus, Server } from 'lucide-react';
+import { Crown, Plus } from 'lucide-react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useServers } from '@/hooks/useServers';
@@ -77,7 +77,7 @@ export function ServersPage() {
 
   return (
     <LayoutGroup>
-      <main className="flex flex-1 flex-col px-6 py-10">
+      <main className="flex flex-1 flex-col px-6 py-6">
         <AnimatePresence mode="wait">
           {!hasServers ? (
             emptyState
@@ -89,41 +89,36 @@ export function ServersPage() {
               transition={{ delay: 0.15, duration: 0.4 }}
               className="w-full"
             >
-              <div className="mb-6 rounded-2xl border border-white/10 bg-black/35 p-4 shadow-[0_18px_70px_rgba(0,0,0,0.24)] backdrop-blur-xl">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
-                      <Server className="h-5 w-5 text-active" />
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.22em] text-muted">Dashboard</p>
-                      <h1 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-active">Nodes</h1>
-                    </div>
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex items-baseline gap-3">
+                    <h1 className="text-xl font-semibold tracking-[-0.04em] text-active">Nodes</h1>
+                    <span className="font-mono text-xs text-muted-soft">
+                      {servers?.length} / {serverLimit} · {user?.subscription.plan ?? 'free'}
+                    </span>
                   </div>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                    <div className="rounded-full border border-white/10 bg-white/[0.035] px-3 py-1.5 font-mono text-xs text-muted-soft">
-                      {servers?.length} / {serverLimit} nodes · {user?.subscription.plan ?? 'free'}
-                    </div>
+                  <p className="mt-1 text-xs text-muted">Connected servers and demo nodes</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {atServerLimit && (
                     <button
                       type="button"
-                      onClick={handleAddClick}
-                      className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-white bg-white px-3 text-xs font-semibold text-black transition-colors hover:bg-white/90"
+                      onClick={() => navigate('/billing')}
+                      className="flex items-center gap-2 rounded-full border border-amber-soft/30 bg-amber-soft/10 px-3 py-1.5 text-xs font-medium text-amber-soft"
                     >
-                      <Plus className="h-3.5 w-3.5" />
-                      Add node
+                      <Crown className="h-3.5 w-3.5" />
+                      Free limit reached
                     </button>
-                  </div>
-                </div>
-                {atServerLimit && (
+                  )}
                   <button
                     type="button"
-                    onClick={() => navigate('/billing')}
-                    className="mt-4 flex items-center gap-2 rounded-full border border-amber-soft/30 bg-amber-soft/10 px-3 py-1.5 text-xs font-medium text-amber-soft"
+                    onClick={handleAddClick}
+                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/[0.04] px-3 text-xs font-medium text-muted-soft transition-colors hover:border-white/25 hover:bg-white/[0.08] hover:text-active"
                   >
-                    <Crown className="h-3.5 w-3.5" />
-                    Free limit reached
+                    <Plus className="h-3.5 w-3.5" />
+                    Add node
                   </button>
-                )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
