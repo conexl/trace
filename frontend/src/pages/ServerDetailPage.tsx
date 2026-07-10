@@ -329,45 +329,57 @@ export function ServerDetailPage() {
   return (
     <FaultToleranceOverlay connected={isDemo ? true : connected} reconnectIn={isDemo ? 0 : reconnectIn} error={error}>
       <main className="flex flex-1 flex-col px-6 py-6 min-h-0">
-        <div className="mb-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <BackLink to="/servers">Назад к узлам</BackLink>
-            <div className="hidden h-4 w-px bg-border sm:block" />
-            <div className="flex items-center gap-2">
-              <Server className="h-4 w-4 text-accent" />
-              <h1 className="text-sm font-medium tracking-tight text-active">
-                {data.summary.name}
-              </h1>
-              <UptimeDot status={data.summary.status} />
+        <div className="mb-6 rounded-2xl border border-white/10 bg-black/35 p-4 shadow-[0_18px_70px_rgba(0,0,0,0.24)] backdrop-blur-xl">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <BackLink to="/servers">Back to nodes</BackLink>
+              <div className="hidden h-4 w-px bg-white/10 sm:block" />
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+                  <Server className="h-5 w-5 text-active" />
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.22em] text-muted">Node detail</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <h1 className="text-xl font-semibold tracking-[-0.04em] text-active">
+                      {data.summary.name}
+                    </h1>
+                    <UptimeDot status={data.summary.status} />
+                  </div>
+                </div>
+              </div>
             </div>
-            <motion.button
-              onClick={() => setAgentSettingsOpen(true)}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.96 }}
-              className="ml-1 flex h-7 w-7 items-center justify-center rounded-md border border-border bg-canvas text-muted transition-colors hover:border-accent hover:text-accent"
-              title="Agent settings"
-            >
-              <Settings className="h-3.5 w-3.5" />
-            </motion.button>
-            {incidents.length > 0 && (
-              <motion.button
-                onClick={() => setSelectedIncident(incidents[0])}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.96 }}
-                className="ml-1 flex h-7 items-center justify-center gap-1.5 rounded-md border border-red-400/30 bg-red-400/10 px-2 text-xs text-red-400 transition-colors hover:border-red-400 hover:bg-red-400/20"
-                title="Active incident"
-              >
-                <AlertTriangle className="h-3.5 w-3.5" />
-                <span>{incidents.length}</span>
-              </motion.button>
-            )}
-          </div>
 
-          {isDemo && (
-            <span className="rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 font-mono text-[10px] uppercase text-accent">
-              Demo mode
-            </span>
-          )}
+            <div className="flex flex-wrap items-center gap-2">
+              {isDemo && (
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-soft">
+                  Demo mode
+                </span>
+              )}
+              {incidents.length > 0 && (
+                <motion.button
+                  onClick={() => setSelectedIncident(incidents[0])}
+                  whileHover={{ y: -1 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-red-400/30 bg-red-400/10 px-3 text-xs text-red-300 transition-colors hover:border-red-300 hover:bg-red-400/20"
+                  title="Active incident"
+                >
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  <span>{incidents.length} incident{incidents.length === 1 ? '' : 's'}</span>
+                </motion.button>
+              )}
+              <motion.button
+                onClick={() => setAgentSettingsOpen(true)}
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.98 }}
+                className="flex h-9 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-xs font-medium text-muted-soft transition-colors hover:border-white/20 hover:bg-white/[0.07] hover:text-active"
+                title="Agent settings"
+              >
+                <Settings className="h-3.5 w-3.5" />
+                Agent settings
+              </motion.button>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-12 gap-4 lg:grid-rows-[auto_1fr_1fr] flex-1 min-h-0">
