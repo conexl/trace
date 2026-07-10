@@ -3,14 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   Activity,
-  AlertTriangle,
   CreditCard,
   Crown,
   LayoutDashboard,
   LogIn,
   LogOut,
   User,
-  Workflow,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
@@ -25,8 +23,6 @@ interface HeaderProps {
 const navItems = [
   { to: '/', label: 'Home', icon: LayoutDashboard },
   { to: '/servers', label: 'Dashboard', icon: Activity },
-  { to: '/incidents', label: 'Incidents', icon: AlertTriangle },
-  { to: '/tasks', label: 'Tasks', icon: Workflow },
   { to: '/billing', label: 'Pricing', icon: CreditCard },
 ];
 

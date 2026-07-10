@@ -2,8 +2,10 @@ import * as React from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/Header';
+import { DashboardHeader } from '@/components/DashboardHeader';
 import { AuthModal } from '@/components/AuthModal';
 import { PageTransition } from '@/components/PageTransition';
+import { cn } from '@/lib/utils';
 
 export interface LayoutContext {
   onAuthRequired: () => void;
@@ -12,6 +14,9 @@ export interface LayoutContext {
 export function Layout() {
   const location = useLocation();
   const [authOpen, setAuthOpen] = React.useState(false);
+  const isDashboard = ['/servers', '/incidents', '/tasks', '/alerts'].some((path) =>
+    location.pathname === path || location.pathname.startsWith(`${path}/`)
+  );
 
   const contextValue = React.useMemo<LayoutContext>(
     () => ({ onAuthRequired: () => setAuthOpen(true) }),
@@ -20,9 +25,12 @@ export function Layout() {
 
   return (
     <div className="relative flex min-h-screen flex-col">
-      <Header onLoginClick={() => setAuthOpen(true)} />
+      {isDashboard ? <DashboardHeader /> : <Header onLoginClick={() => setAuthOpen(true)} />}
       <AnimatePresence mode="wait">
-        <PageTransition key={location.pathname} className="flex min-h-screen flex-col pt-32 lg:pt-20">
+        <PageTransition
+          key={location.pathname}
+          className={cn('flex min-h-screen flex-col', isDashboard ? 'pt-14' : 'pt-32 lg:pt-20')}
+        >
           <Outlet context={contextValue} />
         </PageTransition>
       </AnimatePresence>
