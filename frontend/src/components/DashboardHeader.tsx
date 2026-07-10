@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Activity, AlertTriangle, CreditCard, LogIn, LogOut, User, Workflow } from 'lucide-react';
+import { Activity, AlertTriangle, CreditCard, LogIn, LogOut, Plus, User, Workflow } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
@@ -13,7 +13,11 @@ const dashboardTabs = [
   { to: '/tasks', label: 'Tasks', icon: Workflow },
 ];
 
-export function DashboardHeader() {
+interface DashboardHeaderProps {
+  onAddServerClick: () => void;
+}
+
+export function DashboardHeader({ onAddServerClick }: DashboardHeaderProps) {
   const { isAuthenticated, logout, user } = useAuth();
   const navigate = useNavigate();
   const [confirmLogout, setConfirmLogout] = React.useState(false);
@@ -62,14 +66,25 @@ export function DashboardHeader() {
 
         <div className="flex items-center gap-2">
           {isAuthenticated && (
-            <button
-              type="button"
-              onClick={() => navigate('/billing')}
-              className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-1.5 text-xs font-medium capitalize text-muted-soft transition-colors hover:border-white/20 hover:bg-white/[0.07] hover:text-active md:flex"
-            >
-              <CreditCard className="h-3.5 w-3.5" />
-              {plan}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={onAddServerClick}
+                title="Add node"
+                className="flex h-8 w-8 items-center justify-center gap-2 rounded-lg border border-white bg-white text-xs font-semibold text-black transition-colors hover:bg-white/90 sm:w-auto sm:px-3"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Add node</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/billing')}
+                className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-1.5 text-xs font-medium capitalize text-muted-soft transition-colors hover:border-white/20 hover:bg-white/[0.07] hover:text-active md:flex"
+              >
+                <CreditCard className="h-3.5 w-3.5" />
+                {plan}
+              </button>
+            </>
           )}
 
           <AnimatePresence mode="wait">

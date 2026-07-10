@@ -7,11 +7,9 @@ import {
   Check,
   Cloud,
   Network,
-  PlayCircle,
   RadioTower,
   ShieldCheck,
   TerminalSquare,
-  Trophy,
   Workflow,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -126,14 +124,14 @@ export function LandingPage() {
               <img src="/logo.svg" alt="Trace logo" className="h-14 w-14 object-contain drop-shadow-[0_0_20px_rgba(255,255,255,0.22)]" />
               <div className="h-10 w-px bg-white/12" />
               <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-muted">Hackathon product</p>
+                <p className="text-xs uppercase tracking-[0.24em] text-muted">Product</p>
                 <p className="mt-1 text-sm text-muted-soft">Micro SaaS for self-hosted infrastructure</p>
               </div>
             </div>
 
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-1 text-xs font-medium text-muted-soft">
-              <Trophy className="h-3.5 w-3.5 text-active" />
-              Jury-ready story: detect, explain, act
+              <ShieldCheck className="h-3.5 w-3.5 text-active" />
+              Operational control loop: detect, explain, act
             </div>
             <h1 className="max-w-5xl text-balance text-5xl font-semibold tracking-[-0.07em] text-active sm:text-6xl lg:text-7xl">
               Turn any home server into a managed SaaS node.
@@ -144,7 +142,7 @@ export function LandingPage() {
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <Button variant="neon" size="lg" onClick={() => navigate('/servers/demo-server')} className="gap-2">
-                Run jury demo <PlayCircle className="h-4 w-4" />
+                Open product demo <ArrowRight className="h-4 w-4" />
               </Button>
               <Button variant="default" size="lg" onClick={() => navigate('/servers')} className="gap-2">
                 Open dashboard <ArrowRight className="h-4 w-4" />
@@ -167,7 +165,7 @@ export function LandingPage() {
                     <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-active">Failure to fix, in one screen.</h2>
                   </div>
                   <div className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-200">
-                    demo-safe
+                    safe preview
                   </div>
                 </div>
 
@@ -226,13 +224,12 @@ export function LandingPage() {
       <section className="px-6 py-24 sm:px-10">
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-12 lg:items-start">
           <FadeIn className="lg:col-span-5">
-            <p className="text-xs uppercase tracking-[0.24em] text-muted">Demo narrative</p>
+            <p className="text-xs uppercase tracking-[0.24em] text-muted">Product workflow</p>
             <h2 className="mt-4 max-w-xl text-4xl font-semibold tracking-[-0.05em] text-active sm:text-5xl">
-              A judge can understand it in three clicks.
+              From signal to action in three steps.
             </h2>
             <p className="mt-5 max-w-xl text-sm leading-7 text-muted-soft">
-              The homepage explains why Trace exists. The demo node proves the workflow. The dashboard
-              is where a real user operates their machines.
+              Trace connects an installed agent, detects failures, explains incidents, and gives operators a safe path to act from the browser.
             </p>
           </FadeIn>
 
@@ -298,7 +295,7 @@ export function LandingPage() {
                           <p className="text-xs uppercase tracking-[0.22em] text-muted">{plus ? 'Control plane' : 'Starter'}</p>
                           <h3 className="mt-4 text-3xl font-semibold text-active">{tier.name}</h3>
                         </div>
-                        {plus && <div className="rounded-full border border-white/15 bg-white px-3 py-1 text-xs font-semibold text-black">Best demo</div>}
+                        {plus && <div className="rounded-full border border-white/15 bg-white px-3 py-1 text-xs font-semibold text-black">Best value</div>}
                       </div>
                       <div className="mt-8 flex items-end gap-2">
                         <span className="text-5xl font-semibold tracking-[-0.05em] text-active">{tier.price}</span>
@@ -335,11 +332,11 @@ export function LandingPage() {
                 Home sells the vision. Dashboard runs the machines.
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-soft">
-                That separation keeps the pitch sharp for judges and the product usable for operators.
+                That separation keeps discovery clear and day-to-day operations focused.
               </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
-              <Button variant="neon" size="lg" onClick={() => navigate('/servers/demo-server')}>Run jury demo</Button>
+              <Button variant="neon" size="lg" onClick={() => navigate('/servers/demo-server')}>Open product demo</Button>
               <Link to="/billing" className="inline-flex h-12 items-center justify-center rounded-lg px-6 text-sm font-medium text-muted-soft transition-colors hover:text-active">
                 Compare plans
               </Link>

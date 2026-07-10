@@ -97,7 +97,7 @@ export function ServersPage() {
                       {servers?.length} / {serverLimit} · {user?.subscription.plan ?? 'free'}
                     </span>
                   </div>
-                  <p className="mt-1 text-xs text-muted">Connected servers and demo nodes</p>
+                  <p className="mt-1 text-xs text-muted">Connected servers and agent status</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {atServerLimit && (
@@ -137,7 +137,7 @@ export function ServersPage() {
                       )}
                     </div>
                     <span className="text-sm font-medium tracking-tight text-muted">
-                      {atServerLimit ? 'Upgrade to add nodes' : 'Добавить узел'}
+                      {atServerLimit ? 'Upgrade to add nodes' : 'Add node'}
                     </span>
                   </Card>
                 </motion.div>

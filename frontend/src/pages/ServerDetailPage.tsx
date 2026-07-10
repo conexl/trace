@@ -345,7 +345,7 @@ export function ServerDetailPage() {
           <div className="flex flex-wrap items-center gap-2">
             {isDemo && (
               <span className="rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-soft">
-                Demo mode
+                Preview node
               </span>
             )}
             {incidents.length > 0 && (
