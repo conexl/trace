@@ -61,6 +61,7 @@ export async function register(
     method: 'POST',
     headers,
     body: JSON.stringify({ email, password }),
+    credentials: 'include',
   });
 
   if (!response.ok) {

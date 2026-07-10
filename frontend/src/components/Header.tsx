@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   LogIn,
   LogOut,
+  Menu,
   User,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -29,21 +30,22 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
   const { isAuthenticated, logout, user } = useAuth();
   const navigate = useNavigate();
   const [confirmLogout, setConfirmLogout] = React.useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const plan = user?.subscription.plan ?? 'free';
   const isPlus = plan === 'plus';
 
   return (
     <header className="fixed left-0 right-0 top-0 z-40 px-3 py-3 sm:px-6">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/72 px-3 py-2 shadow-[0_18px_70px_rgba(0,0,0,0.42)] backdrop-blur-xl">
+      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-2 rounded-2xl border border-white/10 bg-black/72 px-3 shadow-[0_18px_70px_rgba(0,0,0,0.42)] backdrop-blur-xl sm:h-auto sm:py-2">
         <button
           type="button"
           onClick={() => navigate('/')}
-          className="group flex items-center gap-3 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/[0.05]"
+          className="group flex min-w-0 items-center gap-2 rounded-xl px-1 py-1.5 text-left transition-colors hover:bg-white/[0.05] sm:gap-3 sm:px-2"
         >
           <img
             src="/logo.svg"
             alt="Trace"
-            className="h-10 w-10 object-contain drop-shadow-[0_0_14px_rgba(255,255,255,0.20)]"
+            className="h-8 w-8 shrink-0 object-contain drop-shadow-[0_0_14px_rgba(255,255,255,0.20)] sm:h-10 sm:w-10"
           />
           <div className="hidden sm:block">
             <p className="text-sm font-semibold tracking-tight text-active">Trace</p>
@@ -143,10 +145,25 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
               </motion.div>
             )}
           </AnimatePresence>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setMobileMenuOpen((open) => !open)}
+            className="h-9 w-9 p-0 lg:hidden"
+            title="Menu"
+          >
+            <Menu className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
-      <nav className="mx-auto mt-2 flex max-w-7xl gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-black/70 p-1 backdrop-blur-xl lg:hidden">
+      <nav
+        className={cn(
+          'mx-auto mt-2 max-w-7xl gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-black/82 p-1 backdrop-blur-xl lg:hidden',
+          mobileMenuOpen ? 'flex' : 'hidden'
+        )}
+      >
         {navItems.map((item) => (
           <NavLink
             key={item.to}

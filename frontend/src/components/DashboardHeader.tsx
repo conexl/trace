@@ -25,7 +25,7 @@ export function DashboardHeader({ onAddServerClick }: DashboardHeaderProps) {
 
   return (
     <header className="fixed left-0 right-0 top-0 z-40 border-b border-white/10 bg-black/78 backdrop-blur-xl">
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
+      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-2 px-3 sm:gap-3 sm:px-6">
         <button
           type="button"
           onClick={() => navigate('/servers')}
@@ -50,7 +50,7 @@ export function DashboardHeader({ onAddServerClick }: DashboardHeaderProps) {
                 to={item.to}
                 className={({ isActive }) =>
                   cn(
-                    'flex shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
+                    'flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-all sm:gap-2 sm:px-3',
                     isActive
                       ? 'bg-white text-black shadow-[0_8px_24px_rgba(255,255,255,0.10)]'
                       : 'text-muted-soft hover:bg-white/[0.05] hover:text-active'
@@ -58,13 +58,13 @@ export function DashboardHeader({ onAddServerClick }: DashboardHeaderProps) {
                 }
               >
                 <item.icon className="h-3.5 w-3.5" />
-                {item.label}
+                <span className="hidden sm:inline">{item.label}</span>
               </NavLink>
             ))}
           </div>
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {isAuthenticated && (
             <>
               <button

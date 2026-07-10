@@ -86,20 +86,22 @@ export function AddServerModal({ open, onOpenChange, initialPairing, initialAgen
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-h-[calc(100vh-2rem)] max-w-3xl overflow-y-auto p-0">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Terminal className="h-4 w-4 text-accent" />
-            Add server
-          </DialogTitle>
-          <DialogDescription>
-            Run one command on the server. Trace will install the agent, pair it, and start the service.
-          </DialogDescription>
+          <div className="border-b border-white/10 px-5 pb-4 pt-5 sm:px-6">
+            <DialogTitle className="flex items-center gap-2">
+              <Terminal className="h-4 w-4 text-accent" />
+              Add server
+            </DialogTitle>
+            <DialogDescription className="mt-2 max-w-xl">
+              Generate a one-time pairing code, then run the install command on the target machine.
+            </DialogDescription>
+          </div>
         </DialogHeader>
 
-        <div className="space-y-4 pt-2">
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-            <div className="space-y-1.5">
+        <div className="space-y-4 px-5 py-5 sm:px-6">
+          <div className="grid min-w-0 gap-3 md:grid-cols-[1fr_auto] md:items-end">
+            <div className="min-w-0 space-y-1.5">
               <label className="text-xs font-mono text-muted">Agent name</label>
               <input
                 type="text"
@@ -109,17 +111,17 @@ export function AddServerModal({ open, onOpenChange, initialPairing, initialAgen
                 className="w-full rounded-md border border-border bg-canvas px-3 py-2 text-sm text-active placeholder:text-muted/50 focus:border-border-focus focus:outline-none"
               />
             </div>
-            <Button variant="default" size="md" onClick={generateCode} disabled={loading} className="gap-2">
+            <Button variant="default" size="md" onClick={generateCode} disabled={loading} className="gap-2 md:w-auto">
               <RefreshCw className={loading ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
               New code
             </Button>
           </div>
 
-          <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+          <div className="rounded-xl border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),rgba(255,255,255,0.025)_42%,rgba(255,255,255,0.02))] p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs uppercase tracking-[0.2em] text-muted">Pairing code</p>
-                <p className="mt-2 font-mono text-2xl font-semibold tracking-[0.08em] text-active">
+                <p className="mt-2 break-all font-mono text-2xl font-semibold tracking-[0.08em] text-active">
                   {pairing?.code ?? 'Generating...'}
                 </p>
               </div>
@@ -131,11 +133,11 @@ export function AddServerModal({ open, onOpenChange, initialPairing, initialAgen
             </div>
           </div>
 
-          <div className="relative group">
-            <div className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted">
+          <div className="group relative min-w-0">
+            <div className="pointer-events-none absolute left-3 top-4 text-muted">
               <Terminal className="h-4 w-4" />
             </div>
-            <pre className="max-h-36 overflow-x-auto whitespace-pre-wrap rounded-lg border border-border bg-canvas py-3 pl-10 pr-12 font-mono text-xs leading-6 text-active">
+            <pre className="max-h-40 min-w-0 overflow-x-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-canvas py-3 pl-10 pr-12 font-mono text-xs leading-6 text-active">
               {installCommand}
             </pre>
             <button
@@ -148,7 +150,7 @@ export function AddServerModal({ open, onOpenChange, initialPairing, initialAgen
             </button>
           </div>
 
-          <div className="rounded-xl border border-white/10 bg-white/[0.025] p-4">
+          <div className="min-w-0 rounded-xl border border-white/10 bg-white/[0.025] p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -157,7 +159,7 @@ export function AddServerModal({ open, onOpenChange, initialPairing, initialAgen
                 </div>
                 <a
                   href={pairing ? pairingLink : undefined}
-                  className="mt-2 block truncate font-mono text-xs text-active underline decoration-white/20 underline-offset-4 transition-colors hover:text-white"
+                  className="mt-2 block max-w-full truncate font-mono text-xs text-active underline decoration-white/20 underline-offset-4 transition-colors hover:text-white"
                 >
                   {pairingLink}
                 </a>
@@ -190,11 +192,11 @@ export function AddServerModal({ open, onOpenChange, initialPairing, initialAgen
             </p>
           )}
 
-          <div className="flex items-center justify-between pt-1">
+          <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
             <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
               Close
             </Button>
-            <Button variant="neon" size="sm" onClick={() => copyValue(installCommand, 'command')} disabled={!pairing}>
+            <Button variant="neon" size="sm" onClick={() => copyValue(installCommand, 'command')} disabled={!pairing} className="w-full sm:w-auto">
               {copied === 'command' ? 'Copied' : 'Copy install command'}
             </Button>
           </div>
