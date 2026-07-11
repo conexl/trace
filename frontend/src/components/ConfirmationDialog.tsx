@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { AlertTriangle } from 'lucide-react';
 import {
   Dialog,
@@ -38,11 +37,7 @@ export function ConfirmationDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm overflow-hidden">
-        <motion.div
-          initial={{ opacity: 0, y: 12, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-        >
+        <div className="animate-page-in">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle
@@ -71,7 +66,7 @@ export function ConfirmationDialog({
               {confirmLabel}
             </Button>
           </div>
-        </motion.div>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -1,5 +1,4 @@
 import * as React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   Activity,
@@ -97,15 +96,7 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
             </>
           )}
 
-          <AnimatePresence mode="wait">
-            {!isAuthenticated ? (
-              <motion.div
-                key="login"
-                initial={{ opacity: 0, x: 12 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 12 }}
-                transition={{ duration: 0.2 }}
-              >
+          {!isAuthenticated ? (
                 <Button
                   variant="neon"
                   size="sm"
@@ -115,16 +106,8 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
                   <LogIn className="h-4 w-4" />
                   <span className="hidden sm:inline">Login</span>
                 </Button>
-              </motion.div>
             ) : (
-              <motion.div
-                key="profile"
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.96 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-center gap-2"
-              >
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => navigate('/profile')}
@@ -145,9 +128,8 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
                 >
                   <LogOut className="h-4 w-4" />
                 </Button>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
 
           <Button
             variant="ghost"

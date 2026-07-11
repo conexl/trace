@@ -5,9 +5,10 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import { ToastProvider } from '@/components/ToastProvider';
 import { Layout } from '@/components/Layout';
 import { LandingPage } from '@/pages/LandingPage';
-import { LoginPage } from '@/pages/LoginPage';
-import { RegisterPage } from '@/pages/RegisterPage';
-import { NotFoundPage } from '@/pages/NotFoundPage';
+
+const LoginPage = React.lazy(() => import('@/pages/LoginPage').then((m) => ({ default: m.LoginPage })));
+const RegisterPage = React.lazy(() => import('@/pages/RegisterPage').then((m) => ({ default: m.RegisterPage })));
+const NotFoundPage = React.lazy(() => import('@/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
 
 const ServersPage = React.lazy(() => import('@/pages/ServersPage').then((m) => ({ default: m.ServersPage })));
 const ServerDetailPage = React.lazy(() => import('@/pages/ServerDetailPage').then((m) => ({ default: m.ServerDetailPage })));

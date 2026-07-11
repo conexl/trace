@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/Header';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { AuthModal } from '@/components/AuthModal';
@@ -72,14 +71,12 @@ export function Layout() {
       ) : (
         <Header onLoginClick={() => setAuthOpen(true)} />
       )}
-      <AnimatePresence mode="wait">
-        <PageTransition
-          key={location.pathname}
-          className={cn('flex min-h-screen flex-col', isDashboard ? 'pt-14' : 'pt-20')}
-        >
-          <Outlet context={contextValue} />
-        </PageTransition>
-      </AnimatePresence>
+      <PageTransition
+        key={location.pathname}
+        className={cn('flex min-h-screen flex-col', isDashboard ? 'pt-14' : 'pt-20')}
+      >
+        <Outlet context={contextValue} />
+      </PageTransition>
       <AuthModal open={authOpen} onOpenChange={setAuthOpen} />
       <AddServerModal
         open={addServerOpen}

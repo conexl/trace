@@ -1,5 +1,4 @@
 import * as React from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, XCircle, Info, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -57,16 +56,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2">
-        <AnimatePresence>
-          {toasts.map((toast) => (
-            <motion.div
+        {toasts.map((toast) => (
+            <div
               key={toast.id}
-              initial={{ opacity: 0, y: 12, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 24 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
               className={cn(
-                'flex w-72 items-start gap-2.5 rounded-lg border bg-surface px-3 py-2.5 shadow-xl',
+                'animate-toast-in flex w-72 items-start gap-2.5 rounded-lg border bg-surface px-3 py-2.5 shadow-xl',
                 toast.type === 'success' && 'border-accent/30',
                 toast.type === 'error' && 'border-red-500/30',
                 toast.type === 'info' && 'border-border'
@@ -82,9 +76,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               >
                 <X className="h-3.5 w-3.5" />
               </button>
-            </motion.div>
+            </div>
           ))}
-        </AnimatePresence>
       </div>
     </ToastContext.Provider>
   );

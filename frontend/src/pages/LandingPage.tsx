@@ -1,6 +1,5 @@
 import type * as React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
   ArrowRight,
   BrainCircuit,
@@ -89,17 +88,7 @@ const planCards = [
 ];
 
 function FadeIn({ children, delay = 0, className }: { children: React.ReactNode; delay?: number; className?: string }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 18 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.25 }}
-      transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
-      className={className}
-    >
-      {children}
-    </motion.div>
-  );
+  return <div className={className} style={delay ? { animationDelay: `${delay}s` } : undefined}>{children}</div>;
 }
 
 export function LandingPage() {
@@ -114,12 +103,7 @@ export function LandingPage() {
         <div className="pointer-events-none absolute left-1/2 top-0 h-px w-[78rem] -translate-x-1/2 bg-gradient-to-r from-transparent via-white/40 to-transparent" />
 
         <div className="relative mx-auto grid max-w-7xl gap-10 lg:grid-cols-12 lg:items-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-            className="lg:col-span-7"
-          >
+          <div className="animate-page-in lg:col-span-7">
             <div className="mb-8 flex items-center gap-4">
               <img src="/logo.svg" alt="Trace logo" className="h-14 w-14 object-contain drop-shadow-[0_0_20px_rgba(255,255,255,0.22)]" />
               <div className="h-10 w-px bg-white/12" />
@@ -148,14 +132,9 @@ export function LandingPage() {
                 {isAuthenticated ? 'Manage plan' : 'Create free account'} <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ delay: 0.12, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-            className="lg:col-span-5"
-          >
+          <div className="animate-page-in lg:col-span-5" style={{ animationDelay: '120ms' }}>
             <div className="relative overflow-hidden rounded-xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.065),rgba(255,255,255,0.02))] p-2 shadow-sm">
               <div className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
               <div className="rounded-lg border border-white/10 bg-black/55 p-5">
@@ -203,7 +182,7 @@ export function LandingPage() {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
