@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { KeyRound, LogIn } from 'lucide-react';
+import { ArrowLeft, KeyRound, LogIn } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { login } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
@@ -42,20 +42,25 @@ export function LoginPage() {
   };
 
   return (
-    <main className="flex flex-1 items-center justify-center px-6 py-12">
+    <main className="relative flex min-h-screen flex-1 items-center justify-center overflow-hidden px-4 py-12 sm:px-6">
+      <button type="button" onClick={() => navigate('/')} className="absolute left-5 top-5 inline-flex items-center gap-2 text-xs text-muted transition-colors hover:text-active sm:left-8 sm:top-8">
+        <ArrowLeft className="h-3.5 w-3.5" />
+        Back to Trace
+      </button>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-        className="w-full max-w-sm"
+        className="w-full min-w-0 max-w-sm"
       >
-        <Card className="p-6">
+        <Card hover={false} className="border-white/12 bg-surface/90 p-6 shadow-[0_20px_70px_rgba(0,0,0,0.28)]">
           <div className="mb-6 text-center">
             <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface">
               <KeyRound className="h-5 w-5 text-accent" />
             </div>
-            <h1 className="text-lg font-medium tracking-tight text-active">Sign in</h1>
-            <p className="mt-1 text-xs text-muted">Access your server dashboard.</p>
+            <p className="text-xs font-mono uppercase tracking-[0.16em] text-muted">Trace account</p>
+            <h1 className="mt-2 text-xl font-bold tracking-tight text-active">Sign in</h1>
+            <p className="mt-1 text-sm text-muted">Access your server control plane.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">

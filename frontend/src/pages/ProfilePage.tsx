@@ -17,6 +17,7 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { TelegramConnectButton } from '@/components/TelegramConnectButton';
+import { PageHeader } from '@/components/PageHeader';
 
 const featureRows = [
   ['remote_tasks', 'Remote tasks'],
@@ -49,7 +50,7 @@ export function ProfilePage() {
 
   return (
     <main className="flex flex-1 flex-col px-4 py-5 sm:px-6 lg:px-8">
-      <section className="mx-auto grid w-full max-w-6xl gap-5 lg:grid-cols-[320px_1fr]">
+      <section className="mx-auto grid w-full max-w-5xl gap-5 lg:grid-cols-[280px_1fr]">
         <motion.aside
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
@@ -95,13 +96,12 @@ export function ProfilePage() {
           transition={{ delay: 0.05, duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
           className="min-w-0"
         >
-          <div className="mb-5">
-            <p className="text-xs uppercase tracking-[0.22em] text-muted">Settings</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-active sm:text-4xl">Profile</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-soft">
-              Account identity, plan limits and notification channels for this workspace.
-            </p>
-          </div>
+          <PageHeader
+            title="Workspace settings"
+            description="Account identity, plan limits and notification channels for this workspace."
+            eyebrow="Profile"
+            className="mb-5"
+          />
 
           <Card hover={false} className="divide-y divide-white/10 overflow-hidden border-white/10">
             <SettingsRow
@@ -168,7 +168,7 @@ export function ProfilePage() {
             </div>
           </Card>
 
-          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.025] p-4 text-xs leading-6 text-muted-soft">
+          <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.025] p-4 text-xs leading-6 text-muted-soft">
             Trace keeps high-risk operational controls in the dashboard, while this page stays focused on account and notification settings.
           </div>
         </motion.div>

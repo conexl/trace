@@ -1,12 +1,13 @@
-import { LayoutGroup, AnimatePresence, motion } from 'framer-motion';
-import { Crown, Plus } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Crown, Server } from 'lucide-react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useServers } from '@/hooks/useServers';
 import type { LayoutContext } from '@/components/Layout';
-import { NeonButton } from '@/components/NeonButton';
 import { ServerCard } from '@/components/ServerCard';
-import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/EmptyState';
+import { PageHeader } from '@/components/PageHeader';
 
 export function ServersPage() {
   const { data: servers, loading } = useServers();
@@ -30,38 +31,16 @@ export function ServersPage() {
   };
 
   const emptyState = (
-    <motion.div
-      key="empty"
-      initial={{ opacity: 0, scale: 0.96 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.96 }}
-      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-1 flex-col items-center justify-center"
-    >
-      <NeonButton layoutId="add-server-action" onClick={handleAddClick}>
-        {atServerLimit ? 'Upgrade for more nodes' : 'Add first node'}
-      </NeonButton>
-      {!isAuthenticated && (
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          className="mt-4 text-sm text-muted"
-        >
-          Sign in to connect a node
-        </motion.p>
-      )}
-    </motion.div>
+    <EmptyState
+      icon={Server}
+      title={atServerLimit ? 'Node limit reached' : 'Connect your first node'}
+      description={atServerLimit ? 'Upgrade the workspace plan to connect more servers.' : isAuthenticated ? 'Generate a pairing code, install the agent, and this workspace will start receiving telemetry.' : 'Sign in to create a pairing code and connect a node.'}
+      action={<Button variant="neon" size="md" onClick={handleAddClick}>{atServerLimit ? 'Upgrade plan' : 'Add node'}</Button>}
+    />
   );
 
   if (!isAuthenticated) {
-    return (
-      <LayoutGroup>
-        <main className="flex flex-1 flex-col px-6 py-10">
-          <AnimatePresence mode="wait">{emptyState}</AnimatePresence>
-        </main>
-      </LayoutGroup>
-    );
+    return <main className="page-shell flex flex-1 flex-col px-4 py-6 sm:px-6"><PageHeader title="Nodes" description="Connect a server to start monitoring its health and services." /><div className="pt-6">{emptyState}</div></main>;
   }
 
   if (loading && !servers) {
@@ -73,11 +52,10 @@ export function ServersPage() {
   }
 
   return (
-    <LayoutGroup>
-      <main className="flex flex-1 flex-col px-6 py-6">
+      <main className="page-shell flex flex-1 flex-col px-4 py-6 sm:px-6">
         <AnimatePresence mode="wait">
           {!hasServers ? (
-            emptyState
+            <div className="pt-2">{emptyState}</div>
           ) : (
             <motion.div
               key="grid"
@@ -86,18 +64,12 @@ export function ServersPage() {
               transition={{ delay: 0.15, duration: 0.4 }}
               className="w-full"
             >
-              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="flex items-baseline gap-3">
-                    <h1 className="text-xl font-semibold tracking-[-0.04em] text-active">Nodes</h1>
-                    <span className="font-mono text-xs text-muted-soft">
-                      {servers?.length} / {serverLimit} · {user?.subscription.plan ?? 'free'}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-muted">Connected servers and agent status</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {atServerLimit && (
+              <PageHeader
+                title="Nodes"
+                description="Connected servers, agent state and configuration delivery."
+                eyebrow={`${servers?.length ?? 0} of ${serverLimit} nodes · ${user?.subscription.plan ?? 'free'} plan`}
+                actions={
+                  atServerLimit ? (
                     <button
                       type="button"
                       onClick={() => navigate('/billing')}
@@ -106,31 +78,11 @@ export function ServersPage() {
                       <Crown className="h-3.5 w-3.5" />
                       Free limit reached
                     </button>
-                  )}
-                </div>
-              </div>
+                  ) : null
+                }
+              />
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                <motion.div layoutId="add-server-action">
-                  <Card
-                    dashed
-                    hover
-                    className="flex h-40 cursor-pointer flex-col items-center justify-center gap-3 border-dashed"
-                    onClick={handleAddClick}
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface">
-                      {atServerLimit ? (
-                        <Crown className="h-5 w-5 text-amber-soft" />
-                      ) : (
-                        <Plus className="h-5 w-5 text-accent" />
-                      )}
-                    </div>
-                    <span className="text-sm font-medium tracking-tight text-muted">
-                      {atServerLimit ? 'Upgrade to add nodes' : 'Connect node'}
-                    </span>
-                  </Card>
-                </motion.div>
-
+              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {servers?.map((server, idx) => (
                   <ServerCard key={server.id} server={server} index={idx} />
                 ))}
@@ -139,6 +91,5 @@ export function ServersPage() {
           )}
         </AnimatePresence>
       </main>
-    </LayoutGroup>
   );
 }

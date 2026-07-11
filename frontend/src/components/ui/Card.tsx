@@ -44,8 +44,7 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
         onMouseMove={handleMouseMove}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        whileHover={hover ? { scale: 1.01 } : undefined}
-        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
       >
         {hover && (
           <motion.div

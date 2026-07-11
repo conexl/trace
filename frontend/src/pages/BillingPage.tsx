@@ -8,6 +8,7 @@ import type { SubscriptionPlan } from '@/lib/types';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/PageHeader';
 
 const plans: {
   plan: SubscriptionPlan;
@@ -68,23 +69,17 @@ export function BillingPage() {
 
   return (
     <main className="flex flex-1 flex-col px-4 py-5 sm:px-6 lg:px-8">
-      <section className="mx-auto w-full max-w-6xl">
+      <section className="mx-auto w-full max-w-5xl">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-          className="mb-5 overflow-hidden rounded-3xl border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),rgba(255,255,255,0.035)_38%,rgba(255,255,255,0.02))] p-5 sm:p-6"
+          className="mb-5 overflow-hidden rounded-xl border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),rgba(255,255,255,0.025)_42%,rgba(255,255,255,0.01))] p-5 sm:p-6"
         >
           <div className="grid gap-6 lg:grid-cols-[1fr_360px] lg:items-end">
             <div>
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-xs font-medium text-accent">
-                <Sparkles className="h-3.5 w-3.5" />
-                Billing
-              </div>
-              <h1 className="max-w-3xl text-4xl font-semibold tracking-[-0.06em] text-active sm:text-5xl">
-                Choose the amount of control this workspace needs.
-              </h1>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-soft">
+              <PageHeader title="Workspace plan" eyebrow={<span className="inline-flex items-center gap-2"><Sparkles className="h-3.5 w-3.5" /> Billing</span>} className="border-0 pb-0" />
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-soft">
                 Free is for observing one node. Plus unlocks actions that can change infrastructure state:
                 remote execution, service actions, AI analysis and Telegram notifications.
               </p>
@@ -96,7 +91,7 @@ export function BillingPage() {
                   <p className="text-xs uppercase tracking-[0.2em] text-muted">Current plan</p>
                   <h2 className="mt-2 text-2xl font-semibold capitalize text-active">{currentPlan}</h2>
                 </div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05]">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05]">
                   {currentPlan === 'plus' ? (
                     <Crown className="h-5 w-5 text-accent" />
                   ) : (
@@ -140,8 +135,8 @@ export function BillingPage() {
                 <Card
                   hover={false}
                   className={cn(
-                    'flex min-h-[460px] flex-col p-5 sm:p-6',
-                    plus && 'border-accent/35 bg-[linear-gradient(140deg,rgba(5,16,18,0.96),rgba(11,13,19,0.92))] shadow-accent-glow'
+                    'flex min-h-[430px] flex-col p-5 sm:p-6',
+                    plus && 'border-accent/35 bg-[linear-gradient(140deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))]'
                   )}
                 >
                   <div className="flex items-start justify-between gap-4">

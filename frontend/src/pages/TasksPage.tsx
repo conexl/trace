@@ -6,6 +6,9 @@ import { useToast } from '@/components/ToastProvider';
 import { getAuditLogs, listTasks } from '@/lib/api';
 import type { AuditLog, Task } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { EmptyState } from '@/components/EmptyState';
+import { PageHeader } from '@/components/PageHeader';
+import { StatusBadge } from '@/components/StatusBadge';
 
 export function TasksPage() {
   const [logs, setLogs] = React.useState<AuditLog[]>([]);
@@ -36,13 +39,12 @@ export function TasksPage() {
   }, [fetchData]);
 
   return (
-    <main className="flex flex-1 flex-col px-6 py-6">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <Terminal className="h-5 w-5 text-accent" />
-          <h1 className="text-xl font-medium tracking-tight text-active">Operations & Audit</h1>
-        </div>
-        <div className="flex items-center gap-1 rounded-lg border border-border bg-canvas p-0.5">
+    <main className="page-shell flex flex-1 flex-col px-4 py-6 sm:px-6">
+      <PageHeader
+        title={tab === 'tasks' ? 'Operations' : 'Audit log'}
+        description={tab === 'tasks' ? 'Queued and completed actions requested for connected nodes.' : 'A chronological record of workspace actions.'}
+        eyebrow="Control plane"
+        actions={<div className="flex items-center gap-1 rounded-lg border border-border bg-white/[0.025] p-1">
           <button
             onClick={() => setTab('tasks')}
             className={cn(
@@ -61,15 +63,15 @@ export function TasksPage() {
           >
             Audit Log
           </button>
-        </div>
-      </div>
+        </div>}
+      />
 
       {loading ? (
         <div className="flex flex-1 items-center justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-accent" />
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3 pt-5">
           {tab === 'audit' ? (
             logs.map((log, idx) => (
               <motion.div
@@ -78,7 +80,7 @@ export function TasksPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.03 }}
               >
-                <Card className="p-4">
+                <Card className="p-4 hover:bg-white/[0.025]">
                   <div className="flex items-start gap-3">
                     <div className="mt-1 rounded-md bg-surface-elevated p-2">
                       <Clock className="h-4 w-4 text-muted" />
@@ -108,7 +110,7 @@ export function TasksPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.03 }}
               >
-                <Card className="p-4">
+                <Card className="p-4 hover:bg-white/[0.025]">
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3">
                       <div className="mt-1 rounded-md bg-surface-elevated p-2">
@@ -123,9 +125,7 @@ export function TasksPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-sm font-medium text-active">{task.name}</span>
-                          <span className="rounded bg-surface-elevated px-1.5 py-0.5 text-[10px] uppercase text-muted">
-                            {task.status}
-                          </span>
+                          <StatusBadge status={task.status} />
                         </div>
                         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-mono text-muted">
                           <span>ID: {task.id}</span>
@@ -170,10 +170,11 @@ export function TasksPage() {
           )}
 
           {((tab === 'audit' && logs.length === 0) || (tab === 'tasks' && tasks.length === 0)) && (
-            <div className="flex flex-col items-center justify-center py-20 text-muted">
-              <Terminal className="mb-4 h-12 w-12 opacity-20" />
-              <p>No {tab === 'audit' ? 'audit logs' : 'tasks'} found</p>
-            </div>
+            <EmptyState
+              icon={Terminal}
+              title={tab === 'audit' ? 'No audit events yet' : 'No tasks yet'}
+              description={tab === 'audit' ? 'Workspace actions will be recorded here as the team uses Trace.' : 'Tasks appear when an operator or an incident workflow requests work from an agent.'}
+            />
           )}
         </div>
       )}

@@ -6,6 +6,9 @@ import { useAuth } from '@/lib/auth';
 import { Card } from '@/components/ui/Card';
 import { FaultToleranceOverlay } from '@/components/FaultToleranceOverlay';
 import { cn } from '@/lib/utils';
+import { EmptyState } from '@/components/EmptyState';
+import { PageHeader } from '@/components/PageHeader';
+import { StatusBadge } from '@/components/StatusBadge';
 
 function severityIcon(severity: string) {
   switch (severity.toLowerCase()) {
@@ -67,15 +70,12 @@ export function AlertsPage() {
 
   return (
     <FaultToleranceOverlay connected={connected} reconnectIn={reconnectIn} error={error}>
-      <main className="flex flex-1 flex-col px-6 py-10">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-medium tracking-tight text-active">Alerts</h1>
-            <p className="mt-1 text-sm text-muted">
-              {alerts?.length ?? 0} alert{alerts?.length !== 1 ? 's' : ''} total
-            </p>
-          </div>
-          <div className="flex items-center gap-1 rounded-lg border border-border bg-canvas p-0.5">
+      <main className="page-shell flex flex-1 flex-col px-4 py-6 sm:px-6">
+        <PageHeader
+          title="Alerts"
+          description={`${alerts?.length ?? 0} event${alerts?.length === 1 ? '' : 's'} captured by connected agents.`}
+          eyebrow={connected ? 'Live stream connected' : 'Reconnecting stream'}
+          actions={<div className="flex items-center gap-1 rounded-lg border border-border bg-white/[0.025] p-1">
             {(['all', 'critical', 'warning', 'info'] as const).map((f) => (
               <button
                 key={f}
@@ -88,10 +88,10 @@ export function AlertsPage() {
                 {f}
               </button>
             ))}
-          </div>
-        </div>
+          </div>}
+        />
 
-        <div className="space-y-3">
+        <div className="space-y-3 pt-5">
           <AnimatePresence mode="popLayout">
             {filtered.length === 0 && (
               <motion.div
@@ -100,10 +100,7 @@ export function AlertsPage() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.96 }}
               >
-                <Card className="flex flex-col items-center justify-center py-16 text-center">
-                  <Bell className="mb-3 h-8 w-8 text-muted/30" />
-                  <p className="text-sm text-muted">No alerts match the selected filter.</p>
-                </Card>
+                <EmptyState icon={Bell} title="No matching alerts" description="Try a different severity filter, or wait for new agent events." />
               </motion.div>
             )}
 
@@ -116,15 +113,13 @@ export function AlertsPage() {
                 exit={{ opacity: 0, scale: 0.96 }}
                 transition={{ duration: 0.25 }}
               >
-                <Card className={cn('border p-4', severityClass(alert.severity))}>
+                <Card className={cn('border p-4 hover:bg-white/[0.025]', severityClass(alert.severity))}>
                   <div className="flex items-start gap-3">
                     <div className="mt-0.5">{severityIcon(alert.severity)}</div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-medium text-active">{alert.type}</span>
-                        <span className="font-mono text-[10px] uppercase text-muted">
-                          {alert.severity}
-                        </span>
+                        <StatusBadge status={alert.severity} />
                         {alert.subject && (
                           <span className="truncate text-[10px] text-muted">· {alert.subject}</span>
                         )}

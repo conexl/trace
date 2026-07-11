@@ -139,7 +139,7 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
                   variant="ghost"
                   size="sm"
                   onClick={() => setConfirmLogout(true)}
-                  className="h-9 w-9 p-0 text-muted hover:text-active"
+                  className="hidden h-9 w-9 p-0 text-muted hover:text-active sm:inline-flex"
                   title="Logout"
                 >
                   <LogOut className="h-4 w-4" />
@@ -155,6 +155,7 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
             className="h-9 w-9 p-0 lg:hidden"
             title={mobileMenuOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={mobileMenuOpen}
+            aria-controls="marketing-navigation"
           >
             {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </Button>
@@ -162,6 +163,7 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
       </div>
 
       <div
+        id="marketing-navigation"
         className={cn(
           'mx-auto mt-2 max-w-7xl overflow-hidden rounded-2xl border border-white/10 bg-black/90 shadow-[0_18px_70px_rgba(0,0,0,0.42)] backdrop-blur-xl lg:hidden',
           mobileMenuOpen ? 'block' : 'hidden'
