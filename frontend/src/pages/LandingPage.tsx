@@ -104,7 +104,7 @@ function FadeIn({ children, delay = 0, className }: { children: React.ReactNode;
 
 export function LandingPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const plan = user?.subscription.plan ?? 'free';
 
   return (
@@ -141,11 +141,11 @@ export function LandingPage() {
               service watchdog, incident intelligence, secure actions and plan-based SaaS access.
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-              <Button variant="neon" size="lg" onClick={() => navigate('/servers/demo-server')} className="gap-2">
-                Open product demo <ArrowRight className="h-4 w-4" />
+              <Button variant="neon" size="lg" onClick={() => navigate(isAuthenticated ? '/servers' : '/servers/demo-server')} className="gap-2">
+                {isAuthenticated ? 'Open dashboard' : 'Explore product demo'} <ArrowRight className="h-4 w-4" />
               </Button>
-              <Button variant="default" size="lg" onClick={() => navigate('/servers')} className="gap-2">
-                Open dashboard <ArrowRight className="h-4 w-4" />
+              <Button variant="default" size="lg" onClick={() => navigate(isAuthenticated ? '/billing' : '/register')} className="gap-2">
+                {isAuthenticated ? 'Manage plan' : 'Create free account'} <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
           </motion.div>
@@ -156,9 +156,9 @@ export function LandingPage() {
             transition={{ delay: 0.12, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
             className="lg:col-span-5"
           >
-            <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.085),rgba(255,255,255,0.025))] p-2 shadow-[0_30px_120px_rgba(0,0,0,0.48)]">
+            <div className="relative overflow-hidden rounded-xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.065),rgba(255,255,255,0.02))] p-2 shadow-sm">
               <div className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
-              <div className="rounded-[1.55rem] border border-white/10 bg-black/55 p-5">
+              <div className="rounded-lg border border-white/10 bg-black/55 p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs uppercase tracking-[0.24em] text-muted">Live product loop</p>
@@ -171,7 +171,7 @@ export function LandingPage() {
 
                 <div className="mt-8 grid gap-3">
                   {controlFlow.map((item, index) => (
-                    <div key={item.label} className="group rounded-2xl border border-white/10 bg-white/[0.035] p-4 transition-colors hover:border-white/20 hover:bg-white/[0.055]">
+                    <div key={item.label} className="group rounded-xl border border-white/10 bg-white/[0.035] p-4 transition-colors hover:border-white/20 hover:bg-white/[0.055]">
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
                           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
@@ -188,7 +188,7 @@ export function LandingPage() {
                   ))}
                 </div>
 
-                <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.035] p-4">
                   <div className="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-muted">
                     <span>AI summary</span>
                     <span>37s ago</span>
@@ -197,8 +197,8 @@ export function LandingPage() {
                     Redis crashed after config drift. Suggested action: restart service, then run diagnostics.
                   </p>
                   <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-                    <span className="rounded-xl border border-white/20 bg-white px-2 py-2 text-center font-semibold text-black">Restart</span>
-                    <span className="rounded-xl border border-white/10 bg-white/[0.04] px-2 py-2 text-center text-muted-soft">Diagnostics</span>
+                    <span className="rounded-lg border border-white/20 bg-white px-2 py-2 text-center font-semibold text-black">Restart</span>
+                    <span className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-2 text-center text-muted-soft">Diagnostics</span>
                   </div>
                 </div>
               </div>
@@ -238,7 +238,7 @@ export function LandingPage() {
               <FadeIn key={step.title} delay={index * 0.06}>
                 <Card hover={false} className="p-5 transition-colors hover:border-white/20 hover:bg-white/[0.045]">
                   <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] font-mono text-xs text-muted-soft">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] font-mono text-xs text-muted-soft">
                       0{index + 1}
                     </div>
                     <div>
@@ -261,7 +261,8 @@ export function LandingPage() {
               <h2 className="mt-4 text-4xl font-semibold tracking-[-0.05em] text-active sm:text-5xl">Free visibility. Paid control.</h2>
             </div>
             <p className="max-w-xl text-sm leading-7 text-muted-soft">
-              Current account: <span className="font-semibold capitalize text-active">{plan}</span>. Plus unlocks remote actions, AI analysis and notifications.
+              {isAuthenticated ? <>Current plan: <span className="font-semibold capitalize text-active">{plan}</span>. </> : 'Start with visibility for one node. '}
+              Plus unlocks remote actions, AI analysis and notifications.
             </p>
           </FadeIn>
 
@@ -271,7 +272,7 @@ export function LandingPage() {
                 <FadeIn key={feature.title} delay={index * 0.06}>
                   <Card hover={false} className="p-5 transition-colors hover:border-white/20 hover:bg-white/[0.045]">
                     <div className="flex items-start gap-4">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
                         <feature.icon className="h-5 w-5 text-active" />
                       </div>
                       <div>
@@ -322,7 +323,7 @@ export function LandingPage() {
 
       <section className="px-6 py-24 sm:px-10">
         <FadeIn>
-          <div className="mx-auto grid max-w-7xl gap-8 rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.085),rgba(255,255,255,0.025))] p-8 shadow-[0_30px_110px_rgba(0,0,0,0.42)] sm:p-10 lg:grid-cols-[0.65fr_0.35fr] lg:items-center">
+          <div className="mx-auto grid max-w-7xl gap-8 rounded-xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.065),rgba(255,255,255,0.02))] p-8 shadow-sm sm:p-10 lg:grid-cols-[0.65fr_0.35fr] lg:items-center">
             <div>
               <div className="flex items-center gap-3">
                 <Network className="h-5 w-5 text-active" />
@@ -336,7 +337,9 @@ export function LandingPage() {
               </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
-              <Button variant="neon" size="lg" onClick={() => navigate('/servers/demo-server')}>Open product demo</Button>
+              <Button variant="neon" size="lg" onClick={() => navigate(isAuthenticated ? '/servers' : '/register')}>
+                {isAuthenticated ? 'Open dashboard' : 'Create free account'}
+              </Button>
               <Link to="/billing" className="inline-flex h-12 items-center justify-center rounded-lg px-6 text-sm font-medium text-muted-soft transition-colors hover:text-active">
                 Compare plans
               </Link>

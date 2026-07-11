@@ -40,7 +40,19 @@ export function ServersPage() {
   );
 
   if (!isAuthenticated) {
-    return <main className="page-shell flex flex-1 flex-col px-4 py-6 sm:px-6"><PageHeader title="Nodes" description="Connect a server to start monitoring its health and services." /><div className="pt-6">{emptyState}</div></main>;
+    return (
+      <main className="page-shell flex flex-1 flex-col px-4 py-6 sm:px-6">
+        <PageHeader title="Dashboard" description="Sign in to view connected nodes, incidents and operations." />
+        <div className="pt-6">
+          <EmptyState
+            icon={Server}
+            title="Sign in to open your dashboard"
+            description="Your workspace keeps server state and operational actions private to your account."
+            action={<Button variant="neon" size="md" onClick={() => navigate('/login')}>Sign in</Button>}
+          />
+        </div>
+      </main>
+    );
   }
 
   if (loading && !servers) {

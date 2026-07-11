@@ -23,7 +23,7 @@ interface HeaderProps {
 
 const navItems = [
   { to: '/', label: 'Home', icon: LayoutDashboard },
-  { to: '/servers', label: 'Dashboard', icon: Activity },
+  { to: '/servers', label: 'Dashboard', icon: Activity, requiresAuth: true },
   { to: '/billing', label: 'Pricing', icon: CreditCard },
 ];
 
@@ -60,6 +60,11 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
             <NavLink
               key={item.to}
               to={item.to}
+              onClick={(event) => {
+                if (!item.requiresAuth || isAuthenticated) return;
+                event.preventDefault();
+                navigate('/login', { state: { from: { pathname: item.to } } });
+              }}
               className={({ isActive }) =>
                 cn(
                   'flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-all',
@@ -91,10 +96,6 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
               </button>
             </>
           )}
-
-          <Button variant="default" size="sm" onClick={() => navigate('/servers/demo-server')} className="hidden sm:inline-flex">
-            Demo
-          </Button>
 
           <AnimatePresence mode="wait">
             {!isAuthenticated ? (
@@ -174,7 +175,12 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
             <NavLink
               key={item.to}
               to={item.to}
-              onClick={closeMobileMenu}
+              onClick={(event) => {
+                closeMobileMenu();
+                if (!item.requiresAuth || isAuthenticated) return;
+                event.preventDefault();
+                navigate('/login', { state: { from: { pathname: item.to } } });
+              }}
               className={({ isActive }) =>
                 cn(
                   'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
@@ -189,17 +195,6 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
         </nav>
 
         <div className="grid gap-2 border-t border-white/10 p-2 sm:hidden">
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => {
-              closeMobileMenu();
-              navigate('/servers/demo-server');
-            }}
-            className="w-full"
-          >
-            Demo
-          </Button>
           {isAuthenticated && (
             <Button
               variant="ghost"

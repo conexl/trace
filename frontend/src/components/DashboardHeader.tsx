@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Activity, AlertTriangle, CreditCard, LogIn, LogOut, Plus, User, Workflow } from 'lucide-react';
+import { Activity, AlertTriangle, Bell, CreditCard, LogIn, LogOut, Plus, User, Workflow } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 const dashboardTabs = [
   { to: '/servers', label: 'Nodes', icon: Activity },
   { to: '/incidents', label: 'Incidents', icon: AlertTriangle },
+  { to: '/alerts', label: 'Alerts', icon: Bell },
   { to: '/tasks', label: 'Tasks', icon: Workflow },
 ];
 
@@ -48,17 +49,22 @@ export function DashboardHeader({ onAddServerClick }: DashboardHeaderProps) {
               <NavLink
                 key={item.to}
                 to={item.to}
+                title={item.label}
                 className={({ isActive }) =>
                   cn(
-                    'flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-all sm:gap-2 sm:px-3',
+                    'flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-medium transition-all sm:text-xs sm:gap-2 sm:px-3',
                     isActive
                       ? 'bg-white text-black shadow-[0_8px_24px_rgba(255,255,255,0.10)]'
                       : 'text-muted-soft hover:bg-white/[0.05] hover:text-active'
                   )
                 }
               >
-                <item.icon className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">{item.label}</span>
+                {({ isActive }) => (
+                  <>
+                    <item.icon className="h-3.5 w-3.5" />
+                    <span className={cn('hidden min-[420px]:inline', isActive && 'inline')}>{item.label}</span>
+                  </>
+                )}
               </NavLink>
             ))}
           </div>
