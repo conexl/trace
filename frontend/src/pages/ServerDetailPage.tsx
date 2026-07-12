@@ -19,6 +19,7 @@ import { DnsManagementDrawer, statusOf } from '@/components/DnsManagementDrawer'
 import { DEMO_STATE, generateDemoHistory, type HistoryPoint } from '@/lib/demo';
 import { getServerConfig, listIncidents, subscribeToEvents, updateServerConfig } from '@/lib/api';
 import type { ServerState, ProcessSnapshot, AgentDesiredConfig, Incident } from '@/lib/types';
+import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { cn, formatBytes, formatDuration } from '@/lib/utils';
 
 const MAX_HISTORY = 60;
@@ -47,6 +48,7 @@ const fadeInUp = {
 export function ServerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { isAuthenticated } = useAuth();
+  const { t } = useI18n();
   const isDemo = id === 'demo-server' || !isAuthenticated;
   const { data: liveData, loading, error, connected, reconnectIn } = useServer(id, !isDemo);
   const data = isDemo ? DEMO_STATE : liveData;
@@ -318,9 +320,9 @@ export function ServerDetailPage() {
   if (!data) {
     return (
       <main className="flex flex-1 flex-col items-center justify-center px-6 text-muted">
-        <p>Server not found</p>
+        <p>{t('server.notFound')}</p>
         <BackLink to="/servers" className="mt-4">
-          Назад к узлам
+          {t('server.backToNodes')}
         </BackLink>
       </main>
     );
@@ -331,7 +333,7 @@ export function ServerDetailPage() {
       <main className="flex flex-1 flex-col px-6 py-4 min-h-0">
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">
-            <BackLink to="/servers" className="shrink-0 text-xs">Back to nodes</BackLink>
+            <BackLink to="/servers" className="shrink-0 text-xs">{t('server.backToNodes')}</BackLink>
             <div className="hidden h-4 w-px bg-white/10 sm:block" />
             <div className="flex min-w-0 items-center gap-2">
               <Server className="h-4 w-4 shrink-0 text-muted-soft" />
@@ -345,7 +347,7 @@ export function ServerDetailPage() {
           <div className="flex flex-wrap items-center gap-2">
             {isDemo && (
               <span className="rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-soft">
-                Preview node
+                {t('server.previewNode')}
               </span>
             )}
             {incidents.length > 0 && (
@@ -354,7 +356,7 @@ export function ServerDetailPage() {
                 whileHover={{ y: -1 }}
                 whileTap={{ scale: 0.98 }}
                 className="flex h-8 items-center justify-center gap-1.5 rounded-lg border border-red-400/30 bg-red-400/10 px-2.5 text-xs text-red-300 transition-colors hover:border-red-300 hover:bg-red-400/20"
-                title="Active incident"
+                title={t('server.activeIncident')}
               >
                 <AlertTriangle className="h-3.5 w-3.5" />
                 <span>{incidents.length}</span>
@@ -365,10 +367,10 @@ export function ServerDetailPage() {
               whileHover={{ y: -1 }}
               whileTap={{ scale: 0.98 }}
               className="flex h-8 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.035] px-2.5 text-xs font-medium text-muted-soft transition-colors hover:border-white/20 hover:bg-white/[0.07] hover:text-active"
-              title="Agent settings"
+              title={t('server.agentSettings')}
             >
               <Settings className="h-3.5 w-3.5" />
-              Settings
+              {t('server.settings')}
             </motion.button>
           </div>
         </div>
@@ -437,33 +439,40 @@ export function ServerDetailPage() {
 }
 
 function StatusBlock({ data }: { data: ServerState }) {
+  const { t } = useI18n();
   const { summary, snapshot } = data;
   const dnsMatches = snapshot.network.dns.filter((d) => d.matches_public_ip).length;
 
-  const cards = [
+  const cards: Array<{
+    icon: React.ComponentType<{ className?: string }>;
+    labelKey: TranslationKey;
+    value: string;
+    sub: string;
+    status?: boolean;
+  }> = [
     {
       icon: Server,
-      label: 'Host',
+      labelKey: 'server.host',
       value: snapshot.host.hostname,
       sub: `${snapshot.host.os} · ${snapshot.host.platform}`,
     },
     {
       icon: Activity,
-      label: 'Uptime',
+      labelKey: 'server.uptime',
       value: formatDuration(snapshot.host.uptime / 1_000_000),
       sub: summary.status,
       status: true,
     },
     {
       icon: Globe,
-      label: 'Network',
+      labelKey: 'server.network',
       value: snapshot.network.public_ip || '—',
-      sub: `DNS matches ${dnsMatches}/${snapshot.network.dns.length}`,
+      sub: `${t('server.dnsMatches')} ${dnsMatches}/${snapshot.network.dns.length}`,
     },
     {
       icon: HardDrive,
-      label: 'Disks',
-      value: `${snapshot.system.disks.length} mounted`,
+      labelKey: 'server.disks',
+      value: `${snapshot.system.disks.length} ${t('server.mounted')}`,
       sub: snapshot.system.disks
         .slice(0, 2)
         .map((d) => `${d.mountpoint} ${d.used_percent.toFixed(0)}%`)
@@ -475,7 +484,7 @@ function StatusBlock({ data }: { data: ServerState }) {
     <div className="col-span-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {cards.map((card, idx) => (
         <motion.div
-          key={card.label}
+          key={card.labelKey}
           variants={fadeInUp}
           initial="initial"
           animate="animate"
@@ -484,7 +493,7 @@ function StatusBlock({ data }: { data: ServerState }) {
           <Card hover={false} className="p-4">
             <div className="flex items-center gap-2 text-muted">
               <card.icon className="h-4 w-4 text-accent" />
-              <span className="text-xs font-mono uppercase">{card.label}</span>
+              <span className="text-xs font-mono uppercase">{t(card.labelKey)}</span>
             </div>
             <div className="mt-2 text-lg font-medium tracking-tight text-active truncate">
               {card.value}
@@ -501,6 +510,7 @@ function StatusBlock({ data }: { data: ServerState }) {
 }
 
 function CpuBlock({ history }: { history: HistoryPoint[] }) {
+  const { t } = useI18n();
   const cpuSeries = [
     { key: 'cpu', name: 'CPU %', color: '#00F576', fill: true },
     ...Array.from(
@@ -531,7 +541,7 @@ function CpuBlock({ history }: { history: HistoryPoint[] }) {
         <div className="mb-2 flex items-center justify-between">
           <div className="flex items-center gap-2 text-active">
             <Cpu className="h-4 w-4 text-accent" />
-            <span className="text-sm font-medium tracking-tight">CPU load</span>
+            <span className="text-sm font-medium tracking-tight">{t('server.cpuLoad')}</span>
           </div>
           <span className="font-mono text-xs text-muted">
             {history.length > 0 ? `${history[history.length - 1].cpu.toFixed(1)}%` : '—'}
@@ -549,6 +559,7 @@ function CpuBlock({ history }: { history: HistoryPoint[] }) {
 }
 
 function RamBlock({ history }: { history: HistoryPoint[] }) {
+  const { t } = useI18n();
   const ramSeries = [
     { key: 'ram', name: 'RAM %', color: '#00F576', fill: true },
     { key: 'swap', name: 'Swap %', color: '#38BDF8', fill: false },
@@ -566,7 +577,7 @@ function RamBlock({ history }: { history: HistoryPoint[] }) {
         <div className="mb-2 flex items-center justify-between">
           <div className="flex items-center gap-2 text-active">
             <MemoryStick className="h-4 w-4 text-accent" />
-            <span className="text-sm font-medium tracking-tight">Memory / Swap</span>
+            <span className="text-sm font-medium tracking-tight">{t('server.memorySwap')}</span>
           </div>
           <span className="font-mono text-xs text-muted">
             {history.length > 0 ? `${history[history.length - 1].ram.toFixed(1)}%` : '—'}
@@ -641,6 +652,7 @@ function ServicesBlock({
 }
 
 function NetworkBlock({ data, isDemo }: { data: ServerState; isDemo: boolean }) {
+  const { t } = useI18n();
   const { network } = data.snapshot;
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const mainIface = network.traffic.find((t) => !t.interface.startsWith('lo')) ?? network.traffic[0];
@@ -659,7 +671,7 @@ function NetworkBlock({ data, isDemo }: { data: ServerState; isDemo: boolean }) 
           <div className="mb-4 flex items-center justify-between text-active">
             <div className="flex items-center gap-2">
               <Globe className="h-4 w-4 text-accent" />
-              <span className="text-sm font-medium tracking-tight">Network telemetry</span>
+              <span className="text-sm font-medium tracking-tight">{t('server.networkTelemetry')}</span>
             </div>
             <motion.button
               onClick={() => setDrawerOpen(true)}
@@ -702,10 +714,10 @@ function NetworkBlock({ data, isDemo }: { data: ServerState; isDemo: boolean }) 
             </div>
 
             <div>
-              <div className="mb-2 text-[10px] font-mono uppercase text-muted">Speed tests</div>
+              <div className="mb-2 text-[10px] font-mono uppercase text-muted">{t('server.speedTests')}</div>
               <div className="space-y-1.5">
                 {network.speed_tests.length === 0 && (
-                  <div className="text-xs text-muted">No speed tests configured</div>
+                  <div className="text-xs text-muted">{t('server.noSpeedTests')}</div>
                 )}
                 {network.speed_tests.map((test) => (
                   <div
@@ -714,7 +726,7 @@ function NetworkBlock({ data, isDemo }: { data: ServerState; isDemo: boolean }) 
                   >
                     <span className="truncate max-w-[120px] text-muted-soft">{test.name}</span>
                     <span className={cn('text-active', test.error && 'text-amber-muted')}>
-                      {test.error ? 'failed' : `${test.mbps.toFixed(1)} Mbps`}
+                      {test.error ? t('server.failed') : `${test.mbps.toFixed(1)} Mbps`}
                     </span>
                   </div>
                 ))}
@@ -722,7 +734,7 @@ function NetworkBlock({ data, isDemo }: { data: ServerState; isDemo: boolean }) 
             </div>
 
             <div>
-              <div className="mb-2 text-[10px] font-mono uppercase text-muted">Listening ports</div>
+              <div className="mb-2 text-[10px] font-mono uppercase text-muted">{t('server.listeningPorts')}</div>
               <div className="space-y-1 pr-1">
                 {network.listening_ports.slice(0, 20).map((port, idx) => (
                   <div

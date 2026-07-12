@@ -7,10 +7,12 @@ import {
   deleteTelegramNotificationLink,
   getTelegramNotificationStatus,
 } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import type { TelegramNotificationStatus } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 export function TelegramConnectButton() {
+  const { t } = useI18n();
   const [status, setStatus] = React.useState<TelegramNotificationStatus | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [confirmUnlink, setConfirmUnlink] = React.useState(false);
@@ -64,7 +66,7 @@ export function TelegramConnectButton() {
       window.open(link.start_url, '_blank', 'noopener,noreferrer');
       startPolling();
     } catch {
-      setError('Telegram bot is not configured or temporarily unavailable.');
+      setError(t('telegram.errorUnavailable'));
     } finally {
       setLoading(false);
     }
@@ -85,7 +87,7 @@ export function TelegramConnectButton() {
   const connected = status?.connected ?? false;
   const chatLabel = status?.chat?.username
     ? `@${status.chat.username}`
-    : status?.chat?.title || status?.chat?.first_name || 'Connected';
+    : status?.chat?.title || status?.chat?.first_name || t('telegram.connectedFallback');
 
   return (
     <div className="space-y-2">
@@ -95,7 +97,7 @@ export function TelegramConnectButton() {
         onClick={() => (connected ? setConfirmUnlink(true) : connect())}
         disabled={loading}
         className={cn('w-full gap-2 sm:w-auto', error ? 'border-red-400/30 text-red-300 hover:text-red-200' : '')}
-        title={error ?? (connected ? 'Telegram connected. Click to unlink.' : 'Connect Telegram notifications')}
+        title={error ?? (connected ? t('telegram.connectedTitle') : t('telegram.connectTitle'))}
       >
         {loading ? (
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -104,16 +106,16 @@ export function TelegramConnectButton() {
         ) : (
           <MessageCircle className="h-4 w-4" />
         )}
-        {loading ? 'Checking...' : connected ? chatLabel : 'Connect Telegram'}
+        {loading ? t('telegram.checking') : connected ? chatLabel : t('telegram.connect')}
       </Button>
       {error && <p className="max-w-xs text-xs leading-5 text-red-300">{error}</p>}
 
       <ConfirmationDialog
         open={confirmUnlink}
         onOpenChange={setConfirmUnlink}
-        title="Unlink Telegram"
-        description="Stop sending incident notifications to your Telegram chat?"
-        confirmLabel="Unlink"
+        title={t('telegram.unlinkTitle')}
+        description={t('telegram.unlinkDescription')}
+        confirmLabel={t('telegram.unlink')}
         variant="danger"
         onConfirm={unlink}
       />

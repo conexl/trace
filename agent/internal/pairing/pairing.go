@@ -54,16 +54,21 @@ func NewClient(cfg config.CloudConfig) (*Client, error) {
 		return nil, fmt.Errorf("cloud endpoint is empty")
 	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	if cfg.MTLS.CAFile != "" {
-		caPEM, err := os.ReadFile(cfg.MTLS.CAFile)
+	if cfg.MTLS.ServerCAFile != "" {
+		caPEM, err := os.ReadFile(cfg.MTLS.ServerCAFile)
 		if err != nil {
-			return nil, fmt.Errorf("read pairing ca file: %w", err)
+			// The installer preconfigures the destination paths before the first
+			// pairing call. Those files do not exist until Claim succeeds.
+			if !os.IsNotExist(err) {
+				return nil, fmt.Errorf("read pairing server ca file: %w", err)
+			}
+		} else {
+			pool := x509.NewCertPool()
+			if !pool.AppendCertsFromPEM(caPEM) {
+				return nil, fmt.Errorf("parse pairing server ca file: no certificates found")
+			}
+			transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: pool}
 		}
-		pool := x509.NewCertPool()
-		if !pool.AppendCertsFromPEM(caPEM) {
-			return nil, fmt.Errorf("parse pairing ca file: no certificates found")
-		}
-		transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: pool}
 	}
 	return &Client{endpoint: strings.TrimRight(endpoint, "/"), token: cfg.Token, client: &http.Client{Timeout: 10 * time.Second, Transport: transport}}, nil
 }

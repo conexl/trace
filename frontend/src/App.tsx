@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import { ToastProvider } from '@/components/ToastProvider';
 import { Layout } from '@/components/Layout';
 import { LandingPage } from '@/pages/LandingPage';
+import { I18nProvider } from '@/lib/i18n';
 
 const LoginPage = React.lazy(() => import('@/pages/LoginPage').then((m) => ({ default: m.LoginPage })));
 const RegisterPage = React.lazy(() => import('@/pages/RegisterPage').then((m) => ({ default: m.RegisterPage })));
@@ -20,9 +21,11 @@ const ProfilePage = React.lazy(() => import('@/pages/ProfilePage').then((m) => (
 
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <I18nProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </I18nProvider>
   );
 }
 

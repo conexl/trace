@@ -128,12 +128,12 @@ func (c *Client) authorize(req *http.Request) {
 }
 
 func buildTLSConfig(cfg config.MTLS) (*tls.Config, error) {
-	if cfg.CAFile == "" && cfg.CertFile == "" && cfg.KeyFile == "" {
+	if cfg.ServerCAFile == "" && cfg.CertFile == "" && cfg.KeyFile == "" {
 		return nil, nil
 	}
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
-	if cfg.CAFile != "" {
-		caPEM, err := os.ReadFile(cfg.CAFile)
+	if cfg.ServerCAFile != "" {
+		caPEM, err := os.ReadFile(cfg.ServerCAFile)
 		if err != nil {
 			return nil, fmt.Errorf("read mtls ca: %w", err)
 		}

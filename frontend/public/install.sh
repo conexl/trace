@@ -98,6 +98,7 @@ cloud:
     ca_file: ${cert_dir}/ca.pem
     cert_file: ${cert_dir}/agent.pem
     key_file: ${cert_dir}/agent-key.pem
+    server_ca_file: ""
 logging:
   level: INFO
 watchdog:

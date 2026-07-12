@@ -777,7 +777,7 @@ func (s *Server) handleGetAgentConfig(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) requireAgent(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if hasVerifiedClientCertificate(r) {
+		if s.hasVerifiedClientCertificate(r) {
 			next(w, r)
 			return
 		}
@@ -1318,6 +1318,11 @@ func listenAndServe(server *http.Server, cfg config.Config) error {
 	return server.ListenAndServe()
 }
 
-func hasVerifiedClientCertificate(r *http.Request) bool {
-	return r.TLS != nil && len(r.TLS.VerifiedChains) > 0 && len(r.TLS.PeerCertificates) > 0
+func (s *Server) hasVerifiedClientCertificate(r *http.Request) bool {
+	if r.TLS != nil && len(r.TLS.VerifiedChains) > 0 && len(r.TLS.PeerCertificates) > 0 {
+		return true
+	}
+	// This header is written, not forwarded, by the private Nginx reverse proxy.
+	// It is enabled only when that proxy is the sole route to the backend.
+	return s.cfg.TLS.TrustProxyClientCert && r.Header.Get("X-Trace-Client-Verify") == "SUCCESS"
 }

@@ -12,80 +12,92 @@ import {
   Workflow,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 
 const controlFlow = [
-  { label: 'Agent', value: 'service control, watchdog, metrics', icon: RadioTower },
-  { label: 'Cloud', value: 'identity, plans, incidents, AI', icon: Cloud },
-  { label: 'Action', value: 'restart, diagnostics, tasks', icon: TerminalSquare },
-];
+  { labelKey: 'landing.flowAgent', valueKey: 'landing.flowAgentValue', icon: RadioTower },
+  { labelKey: 'landing.flowCloud', valueKey: 'landing.flowCloudValue', icon: Cloud },
+  { labelKey: 'landing.flowAction', valueKey: 'landing.flowActionValue', icon: TerminalSquare },
+] satisfies Array<{
+  labelKey: TranslationKey;
+  valueKey: TranslationKey;
+  icon: React.ComponentType<{ className?: string }>;
+}>;
 
 const proofCards = [
   {
-    label: 'Agent',
-    value: 'Go binary',
-    text: 'Collects host, network, hardware and service state close to the machine.',
+    labelKey: 'landing.flowAgent',
+    valueKey: 'landing.proofAgentValue',
+    textKey: 'landing.proofAgentText',
   },
   {
-    label: 'Backend',
-    value: 'SaaS core',
-    text: 'Auth, plans, incidents, metrics, remote actions and Telegram notification flow.',
+    labelKey: 'landing.proofBackend',
+    valueKey: 'landing.proofBackendValue',
+    textKey: 'landing.proofBackendText',
   },
   {
-    label: 'AI',
-    value: 'Incident analyst',
-    text: 'Turns watchdog failures and noisy telemetry into a readable operator summary.',
+    labelKey: 'landing.aiTitle',
+    valueKey: 'landing.proofAiValue',
+    textKey: 'landing.proofAiText',
   },
-];
+] satisfies Array<{ labelKey: TranslationKey; valueKey: TranslationKey; textKey: TranslationKey }>;
 
 const demoSteps = [
   {
-    title: 'Connect a node',
-    text: 'A one-time token binds a home server to the account, then the agent streams state securely.',
+    titleKey: 'landing.stepConnectTitle',
+    textKey: 'landing.stepConnectText',
   },
   {
-    title: 'Detect failure',
-    text: 'Watchdog sees a service crash, records exit state and opens an incident with live context.',
+    titleKey: 'landing.stepDetectTitle',
+    textKey: 'landing.stepDetectText',
   },
   {
-    title: 'Act from browser',
-    text: 'The operator restarts a service, runs diagnostics or escalates via Telegram without SSH.',
+    titleKey: 'landing.stepActTitle',
+    textKey: 'landing.stepActText',
   },
-];
+] satisfies Array<{ titleKey: TranslationKey; textKey: TranslationKey }>;
 
 const featureCards = [
   {
     icon: ShieldCheck,
-    title: 'Trust model first',
-    text: 'Account-bound agents, mTLS-ready transport and plan-aware permissions keep remote operations scoped.',
+    titleKey: 'landing.trustTitle',
+    textKey: 'landing.trustText',
   },
   {
     icon: Workflow,
-    title: 'Operational actions',
-    text: 'Watchdog events can turn into restart flows, diagnostics, disabled actions or incident timelines.',
+    titleKey: 'landing.actionsTitle',
+    textKey: 'landing.actionsText',
   },
   {
     icon: BrainCircuit,
-    title: 'AI incident analyst',
-    text: 'Trace summarizes crashes, correlates signals and proposes the next safe operator move.',
+    titleKey: 'landing.aiTitle',
+    textKey: 'landing.aiText',
   },
-];
+] satisfies Array<{ icon: React.ComponentType<{ className?: string }>; titleKey: TranslationKey; textKey: TranslationKey }>;
 
 const planCards = [
   {
     name: 'Free',
     price: '$0',
-    description: 'Visibility for one home server.',
-    features: ['1 connected server', '24h metric retention', 'Incidents list', 'Read-only dashboard'],
+    descriptionKey: 'landing.freeDescription',
+    featureKeys: ['landing.freeFeatureServer', 'landing.freeFeatureRetention', 'landing.freeFeatureIncidents', 'landing.freeFeatureReadonly'],
   },
   {
     name: 'Plus',
     price: '$12',
-    description: 'Control, AI and notifications for serious homelabs.',
-    features: ['10 connected servers', '30 day retention', 'Remote tasks', 'Service actions', 'AI analysis', 'Telegram alerts'],
+    descriptionKey: 'landing.plusDescription',
+    featureKeys: [
+      'landing.plusFeatureServers',
+      'landing.plusFeatureRetention',
+      'landing.plusFeatureTasks',
+      'landing.plusFeatureActions',
+      'landing.plusFeatureAi',
+      'landing.plusFeatureTelegram',
+    ],
   },
-];
+] satisfies Array<{ name: 'Free' | 'Plus'; price: string; descriptionKey: TranslationKey; featureKeys: TranslationKey[] }>;
 
 function FadeIn({ children, delay = 0, className }: { children: React.ReactNode; delay?: number; className?: string }) {
   return <div className={className} style={delay ? { animationDelay: `${delay}s` } : undefined}>{children}</div>;
@@ -94,6 +106,7 @@ function FadeIn({ children, delay = 0, className }: { children: React.ReactNode;
 export function LandingPage() {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
+  const { t } = useI18n();
   const plan = user?.subscription.plan ?? 'free';
 
   return (
@@ -108,28 +121,27 @@ export function LandingPage() {
               <img src="/logo.svg" alt="Trace logo" className="h-14 w-14 object-contain drop-shadow-[0_0_20px_rgba(255,255,255,0.22)]" />
               <div className="h-10 w-px bg-white/12" />
               <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-muted">Product</p>
-                <p className="mt-1 text-sm text-muted-soft">Micro SaaS for self-hosted infrastructure</p>
+                <p className="text-xs uppercase tracking-[0.24em] text-muted">{t('landing.product')}</p>
+                <p className="mt-1 text-sm text-muted-soft">{t('landing.subproduct')}</p>
               </div>
             </div>
 
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-1 text-xs font-medium text-muted-soft">
               <ShieldCheck className="h-3.5 w-3.5 text-active" />
-              Operational control loop: detect, explain, act
+              {t('landing.badge')}
             </div>
             <h1 className="max-w-5xl text-balance text-5xl font-semibold tracking-[-0.07em] text-active sm:text-6xl lg:text-7xl">
-              Turn any home server into a managed SaaS node.
+              {t('landing.heroTitle')}
             </h1>
             <p className="mt-6 max-w-2xl text-base leading-8 text-muted-soft sm:text-lg">
-              Trace gives hobby infrastructure the control loop teams expect in production: agent telemetry,
-              service watchdog, incident intelligence, secure actions and plan-based SaaS access.
+              {t('landing.heroText')}
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <Button variant="neon" size="lg" onClick={() => navigate(isAuthenticated ? '/servers' : '/servers/demo-server')} className="gap-2">
-                {isAuthenticated ? 'Open dashboard' : 'Explore product demo'} <ArrowRight className="h-4 w-4" />
+                {isAuthenticated ? t('common.openDashboard') : t('landing.demoCta')} <ArrowRight className="h-4 w-4" />
               </Button>
               <Button variant="default" size="lg" onClick={() => navigate(isAuthenticated ? '/billing' : '/register')} className="gap-2">
-                {isAuthenticated ? 'Manage plan' : 'Create free account'} <ArrowRight className="h-4 w-4" />
+                {isAuthenticated ? t('common.managePlanCta') : t('common.createFreeAccount')} <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
           </div>
@@ -140,25 +152,25 @@ export function LandingPage() {
               <div className="rounded-lg border border-white/10 bg-black/55 p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.24em] text-muted">Live product loop</p>
-                    <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-active">Failure to fix, in one screen.</h2>
+                    <p className="text-xs uppercase tracking-[0.24em] text-muted">{t('landing.liveLoop')}</p>
+                    <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-active">{t('landing.failureTitle')}</h2>
                   </div>
                   <div className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-200">
-                    safe preview
+                    {t('landing.safePreview')}
                   </div>
                 </div>
 
                 <div className="mt-8 grid gap-3">
                   {controlFlow.map((item, index) => (
-                    <div key={item.label} className="group rounded-xl border border-white/10 bg-white/[0.035] p-4 transition-colors hover:border-white/20 hover:bg-white/[0.055]">
+                    <div key={item.labelKey} className="group rounded-xl border border-white/10 bg-white/[0.035] p-4 transition-colors hover:border-white/20 hover:bg-white/[0.055]">
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
                           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
                             <item.icon className="h-4 w-4 text-active" />
                           </div>
                           <div>
-                            <p className="text-sm font-semibold text-active">{item.label}</p>
-                            <p className="mt-1 text-xs text-muted-soft">{item.value}</p>
+                            <p className="text-sm font-semibold text-active">{t(item.labelKey)}</p>
+                            <p className="mt-1 text-xs text-muted-soft">{t(item.valueKey)}</p>
                           </div>
                         </div>
                         <span className="font-mono text-xs text-muted">0{index + 1}</span>
@@ -169,15 +181,15 @@ export function LandingPage() {
 
                 <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.035] p-4">
                   <div className="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-muted">
-                    <span>AI summary</span>
-                    <span>37s ago</span>
+                    <span>{t('landing.aiSummary')}</span>
+                    <span>{t('landing.ago')}</span>
                   </div>
                   <p className="mt-4 text-sm leading-6 text-muted-soft">
-                    Redis crashed after config drift. Suggested action: restart service, then run diagnostics.
+                    {t('landing.aiSummaryText')}
                   </p>
                   <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-                    <span className="rounded-lg border border-white/20 bg-white px-2 py-2 text-center font-semibold text-black">Restart</span>
-                    <span className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-2 text-center text-muted-soft">Diagnostics</span>
+                    <span className="rounded-lg border border-white/20 bg-white px-2 py-2 text-center font-semibold text-black">{t('landing.restart')}</span>
+                    <span className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-2 text-center text-muted-soft">{t('landing.diagnostics')}</span>
                   </div>
                 </div>
               </div>
@@ -189,11 +201,11 @@ export function LandingPage() {
       <section className="border-y border-white/10 bg-white/[0.018] px-6 py-16 sm:px-10">
         <div className="mx-auto grid max-w-7xl gap-4 lg:grid-cols-3">
           {proofCards.map((card, index) => (
-            <FadeIn key={card.label} delay={index * 0.06}>
+            <FadeIn key={card.labelKey} delay={index * 0.06}>
               <Card hover={false} className="h-full p-6 transition-colors hover:border-white/20 hover:bg-white/[0.045]">
-                <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted">{card.label}</p>
-                <h2 className="mt-5 text-3xl font-semibold tracking-[-0.05em] text-active">{card.value}</h2>
-                <p className="mt-3 text-sm leading-7 text-muted-soft">{card.text}</p>
+                <p className="font-mono text-xs uppercase tracking-[0.2em] text-muted">{t(card.labelKey)}</p>
+                <h2 className="mt-5 text-3xl font-semibold tracking-[-0.05em] text-active">{t(card.valueKey)}</h2>
+                <p className="mt-3 text-sm leading-7 text-muted-soft">{t(card.textKey)}</p>
               </Card>
             </FadeIn>
           ))}
@@ -203,26 +215,26 @@ export function LandingPage() {
       <section className="px-6 py-24 sm:px-10">
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-12 lg:items-start">
           <FadeIn className="lg:col-span-5">
-            <p className="text-xs uppercase tracking-[0.24em] text-muted">Product workflow</p>
+            <p className="text-xs uppercase tracking-[0.24em] text-muted">{t('landing.workflowEyebrow')}</p>
             <h2 className="mt-4 max-w-xl text-4xl font-semibold tracking-[-0.05em] text-active sm:text-5xl">
-              From signal to action in three steps.
+              {t('landing.workflowTitle')}
             </h2>
             <p className="mt-5 max-w-xl text-sm leading-7 text-muted-soft">
-              Trace connects an installed agent, detects failures, explains incidents, and gives operators a safe path to act from the browser.
+              {t('landing.workflowText')}
             </p>
           </FadeIn>
 
           <div className="grid gap-4 lg:col-span-7">
             {demoSteps.map((step, index) => (
-              <FadeIn key={step.title} delay={index * 0.06}>
+              <FadeIn key={step.titleKey} delay={index * 0.06}>
                 <Card hover={false} className="p-5 transition-colors hover:border-white/20 hover:bg-white/[0.045]">
                   <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] font-mono text-xs text-muted-soft">
                       0{index + 1}
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-active">{step.title}</h3>
-                      <p className="mt-1 text-sm leading-6 text-muted-soft">{step.text}</p>
+                      <h3 className="text-lg font-semibold text-active">{t(step.titleKey)}</h3>
+                      <p className="mt-1 text-sm leading-6 text-muted-soft">{t(step.textKey)}</p>
                     </div>
                   </div>
                 </Card>
@@ -236,27 +248,27 @@ export function LandingPage() {
         <div className="mx-auto max-w-7xl">
           <FadeIn className="mb-10 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-muted">Micro SaaS engine</p>
-              <h2 className="mt-4 text-4xl font-semibold tracking-[-0.05em] text-active sm:text-5xl">Free visibility. Paid control.</h2>
+              <p className="text-xs uppercase tracking-[0.24em] text-muted">{t('landing.engineEyebrow')}</p>
+              <h2 className="mt-4 text-4xl font-semibold tracking-[-0.05em] text-active sm:text-5xl">{t('landing.engineTitle')}</h2>
             </div>
             <p className="max-w-xl text-sm leading-7 text-muted-soft">
-              {isAuthenticated ? <>Current plan: <span className="font-semibold capitalize text-active">{plan}</span>. </> : 'Start with visibility for one node. '}
-              Plus unlocks remote actions, AI analysis and notifications.
+              {isAuthenticated ? <>{t('landing.currentPlan')} <span className="font-semibold capitalize text-active">{plan}</span>. </> : t('landing.startVisibility')}
+              {t('landing.plusUnlocks')}
             </p>
           </FadeIn>
 
           <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
             <div className="grid gap-4">
               {featureCards.map((feature, index) => (
-                <FadeIn key={feature.title} delay={index * 0.06}>
+                <FadeIn key={feature.titleKey} delay={index * 0.06}>
                   <Card hover={false} className="p-5 transition-colors hover:border-white/20 hover:bg-white/[0.045]">
                     <div className="flex items-start gap-4">
                       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
                         <feature.icon className="h-5 w-5 text-active" />
                       </div>
                       <div>
-                        <h3 className="text-lg font-semibold text-active">{feature.title}</h3>
-                        <p className="mt-1 text-sm leading-6 text-muted-soft">{feature.text}</p>
+                        <h3 className="text-lg font-semibold text-active">{t(feature.titleKey)}</h3>
+                        <p className="mt-1 text-sm leading-6 text-muted-soft">{t(feature.textKey)}</p>
                       </div>
                     </div>
                   </Card>
@@ -272,22 +284,22 @@ export function LandingPage() {
                     <Card hover={false} className={plus ? 'h-full border-white/25 bg-white/[0.055] p-6' : 'h-full p-6'}>
                       <div className="flex items-start justify-between gap-4">
                         <div>
-                          <p className="text-xs uppercase tracking-[0.22em] text-muted">{plus ? 'Control plane' : 'Starter'}</p>
-                          <h3 className="mt-4 text-3xl font-semibold text-active">{tier.name}</h3>
+                          <p className="text-xs uppercase tracking-[0.22em] text-muted">{plus ? t('landing.controlPlane') : t('landing.starter')}</p>
+                          <h3 className="mt-4 text-3xl font-semibold text-active">{plus ? t('common.plus') : t('common.free')}</h3>
                         </div>
-                        {plus && <div className="rounded-full border border-white/15 bg-white px-3 py-1 text-xs font-semibold text-black">Best value</div>}
+                        {plus && <div className="rounded-full border border-white/15 bg-white px-3 py-1 text-xs font-semibold text-black">{t('landing.bestValue')}</div>}
                       </div>
                       <div className="mt-8 flex items-end gap-2">
                         <span className="text-5xl font-semibold tracking-[-0.05em] text-active">{tier.price}</span>
-                        <span className="pb-2 text-sm text-muted">/mo</span>
+                        <span className="pb-2 text-sm text-muted">{t('landing.perMonth')}</span>
                       </div>
-                      <p className="mt-4 text-sm leading-6 text-muted-soft">{tier.description}</p>
+                      <p className="mt-4 text-sm leading-6 text-muted-soft">{t(tier.descriptionKey)}</p>
                       <div className="my-6 h-px bg-white/10" />
                       <div className="grid gap-3">
-                        {tier.features.map((feature) => (
-                          <div key={feature} className="flex items-center gap-2 text-sm text-active">
+                        {tier.featureKeys.map((featureKey) => (
+                          <div key={featureKey} className="flex items-center gap-2 text-sm text-active">
                             <Check className="h-4 w-4 text-muted-soft" />
-                            {feature}
+                            {t(featureKey)}
                           </div>
                         ))}
                       </div>
@@ -306,21 +318,21 @@ export function LandingPage() {
             <div>
               <div className="flex items-center gap-3">
                 <Network className="h-5 w-5 text-active" />
-                <p className="text-xs uppercase tracking-[0.24em] text-muted">Product boundary</p>
+                <p className="text-xs uppercase tracking-[0.24em] text-muted">{t('landing.boundaryEyebrow')}</p>
               </div>
               <h2 className="mt-6 max-w-2xl text-3xl font-semibold tracking-[-0.05em] text-active sm:text-4xl">
-                Home sells the vision. Dashboard runs the machines.
+                {t('landing.boundaryTitle')}
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-soft">
-                That separation keeps discovery clear and day-to-day operations focused.
+                {t('landing.boundaryText')}
               </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
               <Button variant="neon" size="lg" onClick={() => navigate(isAuthenticated ? '/servers' : '/register')}>
-                {isAuthenticated ? 'Open dashboard' : 'Create free account'}
+                {isAuthenticated ? t('common.openDashboard') : t('common.createFreeAccount')}
               </Button>
               <Link to="/billing" className="inline-flex h-12 items-center justify-center rounded-lg px-6 text-sm font-medium text-muted-soft transition-colors hover:text-active">
-                Compare plans
+                {t('landing.comparePlans')}
               </Link>
             </div>
           </div>

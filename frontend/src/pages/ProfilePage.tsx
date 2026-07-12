@@ -18,19 +18,22 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { TelegramConnectButton } from '@/components/TelegramConnectButton';
 import { PageHeader } from '@/components/PageHeader';
+import { useI18n, type TranslationKey } from '@/lib/i18n';
+import type { PlanFeatures } from '@/lib/types';
 
 const featureRows = [
-  ['remote_tasks', 'Remote tasks'],
-  ['service_actions', 'Service actions'],
-  ['ai_incident_analysis', 'AI analysis'],
-  ['telegram_notifications', 'Telegram alerts'],
-  ['config_management', 'Agent config'],
-  ['audit_log', 'Audit log'],
-] as const;
+  ['remote_tasks', 'profile.remoteTasks'],
+  ['service_actions', 'profile.serviceActions'],
+  ['ai_incident_analysis', 'profile.aiAnalysis'],
+  ['telegram_notifications', 'profile.telegramAlerts'],
+  ['config_management', 'profile.agentConfig'],
+  ['audit_log', 'profile.auditLog'],
+] satisfies Array<[keyof PlanFeatures, TranslationKey]>;
 
 export function ProfilePage() {
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+  const { t } = useI18n();
   const plan = user?.subscription.plan ?? 'free';
   const isPlus = plan === 'plus';
 
@@ -64,27 +67,27 @@ export function ProfilePage() {
                   <img src="/logo.svg" alt="Trace" className="h-7 w-7 object-contain" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-active">Trace account</p>
+                  <p className="text-sm font-semibold text-active">{t('profile.accountTitle')}</p>
                   <p className="mt-1 truncate font-mono text-xs text-muted-soft">{user?.email}</p>
                 </div>
               </div>
             </div>
 
             <div className="space-y-3 p-5">
-              <SummaryItem icon={isPlus ? Crown : CreditCard} label="Plan" value={plan} active={isPlus} />
-              <SummaryItem icon={Server} label="Node limit" value={`${user?.subscription.limits.max_servers ?? 1}`} />
-              <SummaryItem icon={Bell} label="Metric retention" value={`${user?.subscription.limits.retention_hours ?? 24}h`} />
-              <SummaryItem icon={ShieldCheck} label="Status" value="Active" active />
+              <SummaryItem icon={isPlus ? Crown : CreditCard} label={t('profile.plan')} value={plan} active={isPlus} />
+              <SummaryItem icon={Server} label={t('profile.nodeLimit')} value={`${user?.subscription.limits.max_servers ?? 1}`} />
+              <SummaryItem icon={Bell} label={t('profile.metricRetention')} value={`${user?.subscription.limits.retention_hours ?? 24}h`} />
+              <SummaryItem icon={ShieldCheck} label={t('profile.status')} value={t('common.active')} active />
             </div>
 
             <div className="grid gap-2 border-t border-white/10 p-5">
               <Button variant="default" size="md" onClick={() => navigate('/billing')} className="w-full gap-2">
                 <CreditCard className="h-4 w-4" />
-                Manage plan
+                {t('common.managePlan')}
               </Button>
               <Button variant="ghost" size="md" onClick={logout} className="w-full gap-2 text-muted hover:text-red-300">
                 <LogOut className="h-4 w-4" />
-                Log out
+                {t('common.logout')}
               </Button>
             </div>
           </Card>
@@ -97,43 +100,43 @@ export function ProfilePage() {
           className="min-w-0"
         >
           <PageHeader
-            title="Workspace settings"
-            description="Account identity, plan limits and notification channels for this workspace."
-            eyebrow="Profile"
+            title={t('profile.settingsTitle')}
+            description={t('profile.settingsDescription')}
+            eyebrow={t('profile.eyebrow')}
             className="mb-5"
           />
 
           <Card hover={false} className="divide-y divide-white/10 overflow-hidden border-white/10">
             <SettingsRow
               icon={User}
-              title="Account"
-              description="The email used to sign in and receive workspace ownership context."
+              title={t('profile.account')}
+              description={t('profile.accountDescription')}
               action={<span className="truncate font-mono text-xs text-active">{user?.email}</span>}
             />
 
             <SettingsRow
               icon={CreditCard}
-              title="Plan"
-              description={isPlus ? 'Plus features are active for this workspace.' : 'Free plan is active. Upgrade when you need actions and alerts.'}
+              title={t('profile.plan')}
+              description={isPlus ? t('profile.planDescriptionPlus') : t('profile.planDescriptionFree')}
               action={
                 <Button variant={isPlus ? 'default' : 'neon'} size="sm" onClick={() => navigate('/billing')} className="gap-2">
                   {isPlus ? <Crown className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                  {isPlus ? 'Plus active' : 'Upgrade'}
+                  {isPlus ? t('common.plusActive') : t('common.upgrade')}
                 </Button>
               }
             />
 
             <SettingsRow
               icon={MessageCircle}
-              title="Telegram notifications"
-              description="Connect a personal Telegram chat for incident notifications. Tokens are account-scoped."
+              title={t('profile.telegramTitle')}
+              description={t('profile.telegramDescription')}
               action={
                 isPlus ? (
                   <TelegramConnectButton />
                 ) : (
                   <Button variant="default" size="sm" onClick={() => navigate('/billing')} className="gap-2">
                     <Crown className="h-4 w-4" />
-                    Plus only
+                    {t('common.plusOnly')}
                   </Button>
                 )
               }
@@ -143,19 +146,19 @@ export function ProfilePage() {
               <div className="flex items-start gap-4">
                 <SectionIcon icon={ShieldCheck} />
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-sm font-semibold text-active">Feature access</h2>
+                  <h2 className="text-sm font-semibold text-active">{t('profile.featureAccess')}</h2>
                   <p className="mt-1 text-sm leading-6 text-muted-soft">
-                    Current capabilities unlocked by the active plan.
+                    {t('profile.featureAccessDescription')}
                   </p>
                   <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                    {featureRows.map(([key, label]) => {
+                    {featureRows.map(([key, labelKey]) => {
                       const enabled = Boolean(user?.subscription.features[key]);
                       return (
                         <div
                           key={key}
                           className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.025] px-3 py-2"
                         >
-                          <span className="text-sm text-muted-soft">{label}</span>
+                          <span className="text-sm text-muted-soft">{t(labelKey)}</span>
                           <span className={enabled ? 'text-emerald-200' : 'text-muted'}>
                             {enabled ? <Check className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                           </span>
@@ -169,7 +172,7 @@ export function ProfilePage() {
           </Card>
 
           <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.025] p-4 text-xs leading-6 text-muted-soft">
-            Trace keeps high-risk operational controls in the dashboard, while this page stays focused on account and notification settings.
+            {t('profile.footer')}
           </div>
         </motion.div>
       </section>

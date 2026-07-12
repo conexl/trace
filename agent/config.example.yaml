@@ -9,9 +9,10 @@ cloud:
   replay_batch: 50
   replay_every: 15s
   mtls:
-    ca_file: ./certs/ca.pem
+    ca_file: ./certs/ca.pem # issuer of the paired client certificate
     cert_file: ./certs/agent.pem
     key_file: ./certs/agent-key.pem
+    server_ca_file: "" # optional private CA for the Trace server; public endpoints use system roots
 
 network:
   public_ip_url: https://api.ipify.org

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Activity,
   CreditCard,
@@ -14,6 +14,8 @@ import {
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 interface HeaderProps {
@@ -21,18 +23,26 @@ interface HeaderProps {
 }
 
 const navItems = [
-  { to: '/', label: 'Home', icon: LayoutDashboard },
-  { to: '/servers', label: 'Dashboard', icon: Activity, requiresAuth: true },
-  { to: '/billing', label: 'Pricing', icon: CreditCard },
-];
+  { to: '/', labelKey: 'header.home', icon: LayoutDashboard },
+  { to: '/servers', labelKey: 'header.dashboard', icon: Activity, requiresAuth: true },
+  { to: '/billing', labelKey: 'header.pricing', icon: CreditCard },
+] satisfies Array<{
+  to: string;
+  labelKey: TranslationKey;
+  icon: React.ComponentType<{ className?: string }>;
+  requiresAuth?: boolean;
+}>;
 
 export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
   const { isAuthenticated, logout, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { t } = useI18n();
   const [confirmLogout, setConfirmLogout] = React.useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const plan = user?.subscription.plan ?? 'free';
   const isPlus = plan === 'plus';
+  const showLanguageSwitcher = location.pathname === '/';
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
   return (
@@ -50,7 +60,7 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
           />
           <div className="hidden sm:block">
             <p className="text-sm font-semibold tracking-tight text-active">Trace</p>
-            <p className="text-[10px] uppercase tracking-[0.18em] text-muted">Server control plane</p>
+            <p className="text-[10px] uppercase tracking-[0.18em] text-muted">{t('header.tagline')}</p>
           </div>
         </button>
 
@@ -72,71 +82,71 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
               }
             >
               <item.icon className="h-3.5 w-3.5" />
-              {item.label}
+              {t(item.labelKey)}
             </NavLink>
           ))}
         </nav>
 
         <div className="flex items-center gap-2">
+          {showLanguageSwitcher && <LanguageSwitcher className="hidden sm:flex" />}
+
           {isAuthenticated && (
-            <>
-              <button
-                type="button"
-                onClick={() => navigate('/billing')}
-                className={cn(
-                  'hidden items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors sm:flex',
-                  isPlus
-                    ? 'border-white/20 bg-white text-black hover:bg-white/90'
-                    : 'border-white/10 bg-white/[0.04] text-muted-soft hover:bg-white/[0.08] hover:text-active'
-                )}
-              >
-                {isPlus ? <Crown className="h-3.5 w-3.5" /> : <CreditCard className="h-3.5 w-3.5" />}
-                {isPlus ? 'Plus' : 'Free'}
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={() => navigate('/billing')}
+              className={cn(
+                'hidden items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors sm:flex',
+                isPlus
+                  ? 'border-white/20 bg-white text-black hover:bg-white/90'
+                  : 'border-white/10 bg-white/[0.04] text-muted-soft hover:bg-white/[0.08] hover:text-active'
+              )}
+            >
+              {isPlus ? <Crown className="h-3.5 w-3.5" /> : <CreditCard className="h-3.5 w-3.5" />}
+              {isPlus ? t('common.plus') : t('common.free')}
+            </button>
           )}
 
           {!isAuthenticated ? (
-                <Button
-                  variant="neon"
-                  size="sm"
-                  onClick={() => navigate('/login')}
-                  className="gap-2"
-                >
-                  <LogIn className="h-4 w-4" />
-                  <span className="hidden sm:inline">Login</span>
-                </Button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => navigate('/profile')}
-                  className="flex h-9 w-9 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] transition-colors hover:border-white/20 hover:bg-white/[0.08] md:w-auto md:px-3"
-                  title="Open profile"
-                >
-                  <User className="h-3.5 w-3.5 text-muted-soft" />
-                  <span className="hidden max-w-[160px] truncate font-mono text-xs text-active md:inline">
-                    {user?.email ?? 'Session'}
-                  </span>
-                </button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setConfirmLogout(true)}
-                  className="hidden h-9 w-9 p-0 text-muted hover:text-active sm:inline-flex"
-                  title="Logout"
-                >
-                  <LogOut className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
+            <Button
+              variant="neon"
+              size="sm"
+              onClick={() => navigate('/login')}
+              className="gap-2"
+            >
+              <LogIn className="h-4 w-4" />
+              <span className="hidden sm:inline">{t('common.login')}</span>
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => navigate('/profile')}
+                className="flex h-9 w-9 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] transition-colors hover:border-white/20 hover:bg-white/[0.08] md:w-auto md:px-3"
+                title={t('header.openProfile')}
+              >
+                <User className="h-3.5 w-3.5 text-muted-soft" />
+                <span className="hidden max-w-[160px] truncate font-mono text-xs text-active md:inline">
+                  {user?.email ?? 'Session'}
+                </span>
+              </button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setConfirmLogout(true)}
+                className="hidden h-9 w-9 p-0 text-muted hover:text-active sm:inline-flex"
+                title={t('common.logout')}
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
 
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setMobileMenuOpen((open) => !open)}
             className="h-9 w-9 p-0 lg:hidden"
-            title={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+            title={mobileMenuOpen ? t('header.closeMenu') : t('header.openMenu')}
             aria-expanded={mobileMenuOpen}
             aria-controls="marketing-navigation"
           >
@@ -171,12 +181,14 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
               }
             >
               <item.icon className="h-4 w-4" />
-              {item.label}
+              {t(item.labelKey)}
             </NavLink>
           ))}
         </nav>
 
         <div className="grid gap-2 border-t border-white/10 p-2 sm:hidden">
+          {showLanguageSwitcher && <LanguageSwitcher className="w-fit" />}
+
           {isAuthenticated && (
             <Button
               variant="ghost"
@@ -188,7 +200,7 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
               className="w-full gap-2 text-muted hover:text-red-300"
             >
               <LogOut className="h-4 w-4" />
-              Log out
+              {t('common.logout')}
             </Button>
           )}
         </div>
@@ -197,9 +209,9 @@ export function Header({ onLoginClick: _onLoginClick }: HeaderProps) {
       <ConfirmationDialog
         open={confirmLogout}
         onOpenChange={setConfirmLogout}
-        title="Log out"
-        description="Are you sure you want to end this session?"
-        confirmLabel="Log out"
+        title={t('header.logoutTitle')}
+        description={t('header.logoutDescription')}
+        confirmLabel={t('common.logout')}
         variant="danger"
         onConfirm={logout}
       />

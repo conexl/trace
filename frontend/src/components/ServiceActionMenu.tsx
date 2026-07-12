@@ -2,6 +2,7 @@ import * as React from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { MoreHorizontal, ScrollText, Settings, RotateCw, Square, Trash2 } from 'lucide-react';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
+import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 interface ServiceActionMenuProps {
@@ -23,6 +24,7 @@ export function ServiceActionMenu({
   onRemove,
   canControl = false,
 }: ServiceActionMenuProps) {
+  const { t } = useI18n();
   const [confirmRemove, setConfirmRemove] = React.useState(false);
 
   return (
@@ -49,15 +51,15 @@ export function ServiceActionMenu({
             'data-[side=bottom]:animate-in data-[side=top]:animate-in data-[state=open]:fade-in-0'
           )}
         >
-          <MenuItem icon={ScrollText} label="View logs" onClick={onViewLogs} />
-          <MenuItem icon={Settings} label="Edit policy" onClick={onEditPolicy} />
+          <MenuItem icon={ScrollText} label={t('serviceMenu.viewLogs')} onClick={onViewLogs} />
+          <MenuItem icon={Settings} label={t('serviceMenu.editPolicy')} onClick={onEditPolicy} />
           <DropdownMenu.Separator className="my-1 h-px bg-border" />
-          <MenuItem icon={RotateCw} label="Restart service" onClick={onRestart} disabled={!canControl} />
-          <MenuItem icon={Square} label="Stop service" onClick={onStop} disabled={!canControl} />
+          <MenuItem icon={RotateCw} label={t('serviceMenu.restart')} onClick={onRestart} disabled={!canControl} />
+          <MenuItem icon={Square} label={t('serviceMenu.stop')} onClick={onStop} disabled={!canControl} />
           <DropdownMenu.Separator className="my-1 h-px bg-border" />
           <MenuItem
             icon={Trash2}
-            label="Remove from watchdog"
+            label={t('serviceMenu.remove')}
             onClick={() => setConfirmRemove(true)}
             className="text-red-400 hover:bg-red-950/20 hover:text-red-300"
           />
@@ -68,13 +70,13 @@ export function ServiceActionMenu({
       <ConfirmationDialog
         open={confirmRemove}
         onOpenChange={setConfirmRemove}
-        title="Remove from watchdog"
+        title={t('serviceMenu.remove')}
         description={
           serviceName
-            ? `Stop monitoring "${serviceName}"? You can add it back later.`
-            : 'Stop monitoring this service? You can add it back later.'
+            ? t('serviceMenu.removeDescriptionNamed').replace('{name}', serviceName)
+            : t('serviceMenu.removeDescription')
         }
-        confirmLabel="Remove"
+        confirmLabel={t('serviceMenu.removeConfirm')}
         variant="danger"
         onConfirm={onRemove}
       />

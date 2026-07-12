@@ -37,6 +37,20 @@ func TestClientClaimSendsPairingToken(t *testing.T) {
 	}
 }
 
+func TestNewClientAllowsFutureCAFileDuringInitialPairing(t *testing.T) {
+	missingCA := filepath.Join(t.TempDir(), "certs", "ca.pem")
+	client, err := NewClient(config.CloudConfig{
+		Endpoint: "https://trace.solen.one",
+		MTLS:     config.MTLS{CAFile: missingCA},
+	})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	if client == nil {
+		t.Fatal("NewClient() returned nil client")
+	}
+}
+
 func TestSaveCredentialsWritesSecretFiles(t *testing.T) {
 	dir := t.TempDir()
 	saved, err := SaveCredentials(Response{Certificate: "cert", PrivateKey: "key", CACert: "ca"}, SaveOptions{Dir: dir})

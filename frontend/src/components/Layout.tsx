@@ -27,6 +27,7 @@ export function Layout() {
   const isDashboard = ['/servers', '/incidents', '/tasks', '/alerts', '/profile'].some((path) =>
     location.pathname === path || location.pathname.startsWith(`${path}/`)
   );
+  const hasProfileLanguageRow = location.pathname === '/profile';
 
   const openAddServer = React.useCallback((seed?: AddServerSeed) => {
     setAddServerSeed(seed ?? null);
@@ -73,7 +74,7 @@ export function Layout() {
       )}
       <PageTransition
         key={location.pathname}
-        className={cn('flex min-h-screen flex-col', isDashboard ? 'pt-14' : 'pt-20')}
+        className={cn('flex min-h-screen flex-col', isDashboard ? (hasProfileLanguageRow ? 'pt-28 sm:pt-14' : 'pt-14') : 'pt-20')}
       >
         <Outlet context={contextValue} />
       </PageTransition>

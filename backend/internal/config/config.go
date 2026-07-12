@@ -36,11 +36,12 @@ type HTTPConfig struct {
 }
 
 type TLSConfig struct {
-	Enabled           bool
-	CertFile          string
-	KeyFile           string
-	ClientCAFile      string
-	RequireClientCert bool
+	Enabled              bool
+	CertFile             string
+	KeyFile              string
+	ClientCAFile         string
+	RequireClientCert    bool
+	TrustProxyClientCert bool
 }
 
 type AuthConfig struct {
@@ -115,11 +116,12 @@ func Load() (Config, error) {
 			TrustForwardedHeaders: envBool("HOMELYTICS_TRUST_FORWARDED_HEADERS", false),
 		},
 		TLS: TLSConfig{
-			Enabled:           envBool("HOMELYTICS_TLS_ENABLED", false),
-			CertFile:          os.Getenv("HOMELYTICS_TLS_CERT_FILE"),
-			KeyFile:           os.Getenv("HOMELYTICS_TLS_KEY_FILE"),
-			ClientCAFile:      os.Getenv("HOMELYTICS_TLS_CLIENT_CA_FILE"),
-			RequireClientCert: envBool("HOMELYTICS_TLS_REQUIRE_CLIENT_CERT", false),
+			Enabled:              envBool("HOMELYTICS_TLS_ENABLED", false),
+			CertFile:             os.Getenv("HOMELYTICS_TLS_CERT_FILE"),
+			KeyFile:              os.Getenv("HOMELYTICS_TLS_KEY_FILE"),
+			ClientCAFile:         os.Getenv("HOMELYTICS_TLS_CLIENT_CA_FILE"),
+			RequireClientCert:    envBool("HOMELYTICS_TLS_REQUIRE_CLIENT_CERT", false),
+			TrustProxyClientCert: envBool("HOMELYTICS_TRUST_PROXY_CLIENT_CERT", false),
 		},
 		Auth: AuthConfig{
 			IngestTokens:         parseTokenSet(os.Getenv("HOMELYTICS_INGEST_TOKENS")),

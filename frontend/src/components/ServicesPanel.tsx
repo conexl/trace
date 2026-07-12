@@ -21,6 +21,7 @@ import type { ProcessSnapshot } from '@/lib/types';
 import { ServiceHealthDot } from '@/components/ServiceHealthDot';
 import { ServiceActionMenu } from '@/components/ServiceActionMenu';
 import type { ServicePolicy } from '@/components/PolicyModal';
+import { useI18n, type TranslationKey } from '@/lib/i18n';
 import { cn, formatBytes } from '@/lib/utils';
 
 interface ServicesPanelProps {
@@ -52,6 +53,7 @@ export function ServicesPanel({
   onViewLogs,
   onPolicyChange,
 }: ServicesPanelProps) {
+  const { t } = useI18n();
   const [showAdd, setShowAdd] = useState(false);
   const [query, setQuery] = useState('');
   const [drawerQuery, setDrawerQuery] = useState('');
@@ -182,12 +184,12 @@ export function ServicesPanel({
           </span>
           {downCount > 0 && (
             <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-400">
-              {downCount} down
+              {downCount} {t('services.down').toLowerCase()}
             </span>
           )}
           {controlCount > 0 && (
             <span className="hidden rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent sm:inline-flex">
-              {controlCount} control
+              {controlCount} {t('services.control').toLowerCase()}
             </span>
           )}
         </div>
@@ -198,7 +200,7 @@ export function ServicesPanel({
               className="flex items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 font-mono text-[10px] text-accent transition-colors hover:bg-accent/15"
             >
               <Plus className="h-3 w-3" />
-              Add
+              {t('services.add')}
             </button>
           )}
           <button
@@ -207,7 +209,7 @@ export function ServicesPanel({
             className="inline-flex items-center gap-1 rounded-md border border-border bg-canvas px-2 py-1 font-mono text-[10px] text-muted transition-colors hover:border-accent hover:text-accent active:border-accent active:text-accent"
           >
             <PanelRightOpen className="h-3 w-3" />
-            {hiddenCount > 0 ? `[ see all ${hiddenCount}+ ]` : '[ open ]'}
+            {hiddenCount > 0 ? t('services.seeAll').replace('{count}', String(hiddenCount)) : t('services.open')}
           </button>
         </div>
       </motion.div>
@@ -231,7 +233,7 @@ export function ServicesPanel({
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Search running services…"
+                    placeholder={t('services.searchRunning')}
                     className="flex-1 bg-transparent py-1.5 text-xs text-active placeholder:text-muted/50 focus:outline-none"
                   />
                   <ChevronDown className="h-3.5 w-3.5 text-muted" />
@@ -265,7 +267,7 @@ export function ServicesPanel({
                   type="text"
                   value={manualName}
                   onChange={(e) => setManualName(e.target.value)}
-                  placeholder="Process or service name…"
+                  placeholder={t('services.manualPlaceholder')}
                   className="flex-1 rounded-md border border-border bg-canvas px-2 py-1.5 text-xs text-active placeholder:text-muted/50 focus:border-border-focus focus:outline-none"
                 />
                 <button
@@ -273,7 +275,7 @@ export function ServicesPanel({
                   disabled={!manualName.trim()}
                   className="rounded-md border border-accent/40 bg-accent/10 px-2 py-1.5 text-[10px] text-accent transition-colors hover:bg-accent/15 disabled:opacity-40"
                 >
-                  Save
+                  {t('services.save')}
                 </button>
                 <button
                   type="button"
@@ -283,7 +285,7 @@ export function ServicesPanel({
                   }}
                   className="rounded-md border border-border bg-canvas px-2 py-1.5 text-[10px] text-muted transition-colors hover:text-active"
                 >
-                  Cancel
+                  {t('services.cancel')}
                 </button>
               </form>
             )}
@@ -294,7 +296,7 @@ export function ServicesPanel({
       <div className="flex-1 overflow-hidden pr-1">
         <div className="space-y-1">
           {visible.length === 0 && (
-            <div className="py-8 text-center text-sm text-muted">No services</div>
+            <div className="py-8 text-center text-sm text-muted">{t('services.noServices')}</div>
           )}
           <AnimatePresence initial={false}>
             {visible.map((row, index) => (
@@ -353,10 +355,10 @@ export function ServicesPanel({
                           </div>
                           <div>
                             <DialogPrimitive.Title className="text-sm font-medium tracking-tight text-active">
-                              Watchdog command center
+                              {t('services.commandCenter')}
                             </DialogPrimitive.Title>
                             <DialogPrimitive.Description className="text-xs text-muted">
-                              Search services, inspect policy drift, and run safe agent actions.
+                              {t('services.commandDescription')}
                             </DialogPrimitive.Description>
                           </div>
                         </div>
@@ -367,11 +369,11 @@ export function ServicesPanel({
                     </div>
 
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <WatchdogStat label="Running" value={`${runningCount}/${processes.length}`} tone="accent" />
-                      <WatchdogStat label="Down" value={downCount} tone={downCount > 0 ? 'danger' : 'muted'} />
-                      <WatchdogStat label="Pinned" value={criticalCount} tone="accent" />
+                      <WatchdogStat label={t('services.running')} value={`${runningCount}/${processes.length}`} tone="accent" />
+                      <WatchdogStat label={t('services.down')} value={downCount} tone={downCount > 0 ? 'danger' : 'muted'} />
+                      <WatchdogStat label={t('services.pinned')} value={criticalCount} tone="accent" />
                       <WatchdogStat
-                        label="Control"
+                        label={t('services.control')}
                         value={controlCount}
                         tone={controlCount > 0 ? 'accent' : 'muted'}
                       />
@@ -389,7 +391,7 @@ export function ServicesPanel({
                       <input
                         value={drawerQuery}
                         onChange={(event) => setDrawerQuery(event.target.value)}
-                        placeholder="Search by name, unit, status or error..."
+                        placeholder={t('services.searchDrawer')}
                         className="min-w-0 flex-1 bg-transparent py-2 text-sm text-active placeholder:text-muted/50 focus:outline-none"
                       />
                     </div>
@@ -407,7 +409,7 @@ export function ServicesPanel({
                               : 'border-border bg-canvas text-muted hover:border-accent/50 hover:text-active'
                           )}
                         >
-                          {option.label}
+                          {t(option.labelKey)}
                         </button>
                       ))}
                     </div>
@@ -421,12 +423,12 @@ export function ServicesPanel({
                   >
                     <div className="mb-3 flex items-center justify-between gap-3 text-xs text-muted">
                       <span>
-                        Showing <span className="text-active">{drawerRows.length}</span> of{' '}
-                        <span className="text-active">{rows.length}</span> services
+                        {t('services.showing')} <span className="text-active">{drawerRows.length}</span> {t('services.of')}{' '}
+                        <span className="text-active">{rows.length}</span> {t('services.services')}
                       </span>
                       <span className="hidden items-center gap-1 font-mono text-[10px] uppercase tracking-wide sm:flex">
                         <SlidersHorizontal className="h-3 w-3" />
-                        policies are saved to agent desired config
+                        {t('services.policiesSaved')}
                       </span>
                     </div>
 
@@ -440,8 +442,8 @@ export function ServicesPanel({
                           className="rounded-xl border border-dashed border-border bg-canvas/40 p-10 text-center"
                         >
                           <Activity className="mx-auto mb-3 h-6 w-6 text-muted" />
-                          <p className="text-sm text-active">No services match this view</p>
-                          <p className="mt-1 text-xs text-muted">Try a different filter or search term.</p>
+                          <p className="text-sm text-active">{t('services.noMatch')}</p>
+                          <p className="mt-1 text-xs text-muted">{t('services.tryDifferentFilter')}</p>
                         </motion.div>
                       ) : (
                         <AnimatePresence initial={false}>
@@ -481,12 +483,12 @@ const defaultPolicy: ServicePolicy = {
   memoryThreshold: 80,
 };
 
-const filterOptions: Array<{ value: WatchdogFilter; label: string }> = [
-  { value: 'all', label: 'All' },
-  { value: 'down', label: 'Down' },
-  { value: 'critical', label: 'Pinned' },
-  { value: 'control', label: 'Control' },
-  { value: 'local', label: 'Local' },
+const filterOptions: Array<{ value: WatchdogFilter; labelKey: TranslationKey }> = [
+  { value: 'all', labelKey: 'services.services' },
+  { value: 'down', labelKey: 'services.down' },
+  { value: 'critical', labelKey: 'services.pinned' },
+  { value: 'control', labelKey: 'services.control' },
+  { value: 'local', labelKey: 'services.local' },
 ];
 
 function getHealth(
@@ -576,6 +578,8 @@ function ServiceRow({
   onStop: () => void;
   onRemove: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <motion.div
       layout
@@ -607,18 +611,18 @@ function ServiceRow({
             </button>
             {local && (
               <span className="rounded-full bg-surface-elevated px-1.5 py-0.5 text-[10px] text-muted">
-                local
+                {t('services.local')}
               </span>
             )}
             {proc.remote_control && proc.service && (
               <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">
-                control
+                {t('services.control').toLowerCase()}
               </span>
             )}
             {health === 'down' && (
               <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-400">
                 <AlertTriangle className="h-3 w-3" />
-                down
+                {t('services.down').toLowerCase()}
               </span>
             )}
             <div className="flex items-center gap-1">
@@ -635,11 +639,11 @@ function ServiceRow({
             </div>
           </div>
           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 font-mono text-xs text-muted">
-            {proc.service ? <span>unit {proc.service}</span> : null}
-            {proc.pid ? <span>pid {proc.pid}</span> : null}
-            {proc.last_exit_code !== undefined ? <span>exit {proc.last_exit_code}</span> : null}
-            {proc.cpu_percent !== undefined ? <span>cpu {proc.cpu_percent.toFixed(1)}%</span> : null}
-            {proc.memory_rss ? <span>mem {formatBytes(proc.memory_rss)}</span> : null}
+            {proc.service ? <span>{t('services.unit')} {proc.service}</span> : null}
+            {proc.pid ? <span>{t('services.pid')} {proc.pid}</span> : null}
+            {proc.last_exit_code !== undefined ? <span>{t('services.exit')} {proc.last_exit_code}</span> : null}
+            {proc.cpu_percent !== undefined ? <span>{t('services.cpu')} {proc.cpu_percent.toFixed(1)}%</span> : null}
+            {proc.memory_rss ? <span>{t('services.mem')} {formatBytes(proc.memory_rss)}</span> : null}
             {proc.error ? <span className="truncate text-amber-muted sm:max-w-[260px]">{proc.error}</span> : null}
           </div>
         </div>

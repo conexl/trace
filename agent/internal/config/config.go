@@ -30,12 +30,12 @@ type Config struct {
 }
 
 type AgentConfig struct {
-	ID       string        `yaml:"id"`
-	Name     string        `yaml:"name"`
-	Interval time.Duration `yaml:"interval"`
-	Once     bool          `yaml:"once"`
-	Revision int64         `yaml:"revision"`
-	LastLoaded time.Time   `yaml:"-"`
+	ID         string        `yaml:"id"`
+	Name       string        `yaml:"name"`
+	Interval   time.Duration `yaml:"interval"`
+	Once       bool          `yaml:"once"`
+	Revision   int64         `yaml:"revision"`
+	LastLoaded time.Time     `yaml:"-"`
 }
 
 type LoggingConfig struct {
@@ -62,9 +62,11 @@ type CloudConfig struct {
 }
 
 type MTLS struct {
-	CAFile   string `yaml:"ca_file"`
-	CertFile string `yaml:"cert_file"`
-	KeyFile  string `yaml:"key_file"`
+	// CAFile is the issuer of the agent client certificate returned during pairing.
+	CAFile       string `yaml:"ca_file"`
+	CertFile     string `yaml:"cert_file"`
+	KeyFile      string `yaml:"key_file"`
+	ServerCAFile string `yaml:"server_ca_file"`
 }
 
 type NetworkConfig struct {
